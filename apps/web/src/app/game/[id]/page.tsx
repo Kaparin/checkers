@@ -55,7 +55,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           ? game.gameState : JSON.stringify(game.gameState)
         const parsed = JSON.parse(stateStr)
         const state = parsed.b && typeof parsed.b === 'string'
-          ? deserializeGameState(stateStr) : parsed as GameState
+          ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || game.variant || 'russian' } as GameState
 
         setGameState(state)
 
@@ -77,7 +77,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     const unsub = subscribe((msg) => {
       if (msg.type === 'game:move' || msg.type === 'game:over') {
         const gs = msg.gameState as GameState
-        if (gs) setGameState(gs)
+        if (gs) setGameState(prev => ({ ...gs, variant: gs.variant || prev?.variant || 'russian' }))
         if (msg.type === 'game:over') {
           setWinner(msg.winner as string | null)
           setShowGameOver(true)
@@ -93,7 +93,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             ? game.gameState : JSON.stringify(game.gameState)
           const parsed = JSON.parse(stateStr)
           const state = parsed.b && typeof parsed.b === 'string'
-            ? deserializeGameState(stateStr) : parsed as GameState
+            ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || game.variant || 'russian' } as GameState
           setGameState(state)
           toast('Opponent joined!')
         })
@@ -192,6 +192,11 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           &larr; Lobby
         </button>
         <div className="flex items-center gap-3">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+            gameState.variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-board-dark/10 text-board-dark'
+          }`}>
+            {gameState.variant === 'russian' ? 'RUS' : 'USA'}
+          </span>
           <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
           <span className="text-sm font-medium text-text-secondary">
             {(Number(wager) / 1_000_000).toFixed(0)} COIN

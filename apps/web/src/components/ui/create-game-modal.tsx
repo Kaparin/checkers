@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 
 interface CreateGameModalProps {
   onClose: () => void
-  onCreate: (wager: string, timePerMove: number) => Promise<void>
+  onCreate: (wager: string, timePerMove: number, variant: 'russian' | 'american') => Promise<void>
 }
 
 const WAGER_PRESETS = [1, 5, 10, 25, 50, 100]
@@ -16,15 +16,31 @@ const TIME_PRESETS = [
   { label: '5 min', value: 300 },
 ]
 
+const VARIANTS = [
+  {
+    id: 'russian' as const,
+    name: 'Russian',
+    nameRu: 'Русские',
+    desc: 'Flying kings, backward captures, mid-chain promotion',
+  },
+  {
+    id: 'american' as const,
+    name: 'American',
+    nameRu: 'Американские',
+    desc: 'Standard rules, kings move one square',
+  },
+]
+
 export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
   const [wager, setWager] = useState(5)
   const [timePerMove, setTimePerMove] = useState(60)
+  const [variant, setVariant] = useState<'russian' | 'american'>('russian')
   const [creating, setCreating] = useState(false)
 
   const handleCreate = async () => {
     setCreating(true)
     try {
-      await onCreate(String(wager * 1_000_000), timePerMove)
+      await onCreate(String(wager * 1_000_000), timePerMove, variant)
     } finally {
       setCreating(false)
     }
@@ -41,12 +57,33 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative bg-bg-card border border-border rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-6"
+        className="relative bg-bg-card border border-border rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5"
       >
         <h2 className="text-xl font-bold text-center">Create Game</h2>
 
+        {/* Variant selector */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-text-secondary">Rules</label>
+          <div className="grid grid-cols-2 gap-2">
+            {VARIANTS.map(v => (
+              <button
+                key={v.id}
+                onClick={() => setVariant(v.id)}
+                className={`p-3 rounded-xl text-left transition-all border ${
+                  variant === v.id
+                    ? 'bg-accent/10 border-accent text-accent'
+                    : 'bg-bg-subtle border-transparent text-text-secondary hover:bg-border'
+                }`}
+              >
+                <span className="text-sm font-semibold block">{v.nameRu}</span>
+                <span className="text-[11px] leading-tight block mt-0.5 opacity-70">{v.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Wager */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <label className="text-sm font-medium text-text-secondary">Wager (COIN)</label>
           <div className="grid grid-cols-3 gap-2">
             {WAGER_PRESETS.map(w => (
@@ -73,7 +110,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
         </div>
 
         {/* Time */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <label className="text-sm font-medium text-text-secondary">Time per move</label>
           <div className="grid grid-cols-4 gap-2">
             {TIME_PRESETS.map(t => (

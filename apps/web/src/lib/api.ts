@@ -77,10 +77,10 @@ export async function getGame(id: string) {
   return request<{ game: GameFull }>(`/games/${id}`)
 }
 
-export async function createGame(wager: string, timePerMove = 60) {
+export async function createGame(wager: string, timePerMove = 60, variant: 'russian' | 'american' = 'russian') {
   return request<{ game: GameFull }>('/games', {
     method: 'POST',
-    body: JSON.stringify({ wager, timePerMove }),
+    body: JSON.stringify({ wager, timePerMove, variant }),
   })
 }
 
@@ -129,6 +129,7 @@ export interface GameListItem {
   whitePlayer: string | null
   winner: string | null
   status: string
+  variant: 'russian' | 'american'
   wager: string
   moveCount: number
   timePerMove: number
@@ -139,6 +140,7 @@ export interface GameListItem {
 
 export interface GameFull extends GameListItem {
   gameState: unknown
+  variant: 'russian' | 'american'
   txHashCreate: string | null
   txHashJoin: string | null
   txHashResolve: string | null

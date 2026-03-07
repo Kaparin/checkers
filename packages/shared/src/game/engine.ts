@@ -1,14 +1,14 @@
 /**
- * Checkers game engine
+ * Checkers game engine — American/English rules
  *
  * Standard (American/English) checkers rules:
  * - 8x8 board, pieces on dark squares only
  * - 12 pieces per side (black / white)
  * - Pieces move diagonally forward one square
- * - Kings move diagonally forward or backward
- * - Captures are mandatory
+ * - Kings move diagonally forward or backward (one square)
+ * - Captures are mandatory (men capture forward only)
  * - Multi-jump captures in a single turn
- * - King promotion when reaching the last row
+ * - King promotion when reaching the last row (turn ends)
  * - Win by capturing all opponent pieces or blocking all moves
  */
 
@@ -43,6 +43,8 @@ export interface Move {
 
 export type GameStatus = 'waiting' | 'playing' | 'black_wins' | 'white_wins' | 'draw'
 
+export type GameVariant = 'russian' | 'american'
+
 export interface GameState {
   board: Board
   currentTurn: PieceColor
@@ -52,6 +54,7 @@ export interface GameState {
   blackPieces: number
   whitePieces: number
   lastMoveTimestamp: number | null
+  variant: GameVariant
 }
 
 export interface SerializedMove {
@@ -62,40 +65,14 @@ export interface SerializedMove {
   timestamp: number
 }
 
-// ── Constants ────────────────────────────────────────────────────────
+// ── Re-export common helpers ─────────────────────────────────────────
 
-export const BOARD_SIZE = 8
-export const PIECES_PER_SIDE = 12
-export const ROWS_WITH_PIECES = 3
+export { BOARD_SIZE, PIECES_PER_SIDE, inBounds, opponent, isPromotionRow, cloneBoard, createInitialBoard } from './common'
+import { BOARD_SIZE, PIECES_PER_SIDE, inBounds, opponent, isPromotionRow, cloneBoard, createInitialBoard } from './common'
 
 // ── Board creation ───────────────────────────────────────────────────
 
-export function createInitialBoard(): Board {
-  const board: Board = Array.from({ length: BOARD_SIZE }, () =>
-    Array.from({ length: BOARD_SIZE }, () => null)
-  )
-
-  for (let row = 0; row < ROWS_WITH_PIECES; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
-      // Pieces go on dark squares only (row + col is odd)
-      if ((row + col) % 2 === 1) {
-        board[row][col] = { color: 'black', type: 'man' }
-      }
-    }
-  }
-
-  for (let row = BOARD_SIZE - ROWS_WITH_PIECES; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
-      if ((row + col) % 2 === 1) {
-        board[row][col] = { color: 'white', type: 'man' }
-      }
-    }
-  }
-
-  return board
-}
-
-export function createInitialGameState(): GameState {
+export function createInitialGameState(variant: GameVariant = 'russian'): GameState {
   const board = createInitialBoard()
   return {
     board,
@@ -106,25 +83,8 @@ export function createInitialGameState(): GameState {
     blackPieces: PIECES_PER_SIDE,
     whitePieces: PIECES_PER_SIDE,
     lastMoveTimestamp: null,
+    variant,
   }
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function inBounds(row: number, col: number): boolean {
-  return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE
-}
-
-function opponent(color: PieceColor): PieceColor {
-  return color === 'black' ? 'white' : 'black'
-}
-
-function isPromotionRow(row: number, color: PieceColor): boolean {
-  return color === 'black' ? row === BOARD_SIZE - 1 : row === 0
-}
-
-function cloneBoard(board: Board): Board {
-  return board.map(row => row.map(cell => (cell ? { ...cell } : null)))
 }
 
 // ── Move generation ──────────────────────────────────────────────────
@@ -316,6 +276,7 @@ export function applyMove(state: GameState, move: Move): GameState {
   }
 
   const newState: GameState = {
+    ...state,
     board,
     currentTurn: nextTurn,
     status: 'playing',
@@ -388,6 +349,7 @@ export function serializeGameState(state: GameState): string {
     bp: state.blackPieces,
     wp: state.whitePieces,
     lm: state.lastMoveTimestamp,
+    v: state.variant || 'russian',
   })
 }
 
@@ -403,5 +365,6 @@ export function deserializeGameState(json: string): GameState {
     blackPieces: d.bp,
     whitePieces: d.wp,
     lastMoveTimestamp: d.lm,
+    variant: d.v || 'russian',
   }
 }

@@ -10,6 +10,7 @@ export type {
   Position,
   Move,
   GameStatus,
+  GameVariant,
   GameState,
   SerializedMove,
 } from './game/engine'
@@ -18,12 +19,15 @@ export {
   PIECES_PER_SIDE,
   createInitialBoard,
   createInitialGameState,
-  getValidMoves,
-  getValidMovesForPiece,
-  applyMove,
-  isValidMove,
   serializeBoard,
   deserializeBoard,
   serializeGameState,
   deserializeGameState,
 } from './game/engine'
+// Variant-aware game logic (dispatches to russian or american engine)
+export {
+  getValidMoves,
+  getValidMovesForPiece,
+  applyMove,
+  isValidMove,
+} from './game/variants'

@@ -13,6 +13,7 @@ export const LoginSchema = z.object({
 export const CreateGameSchema = z.object({
   wager: z.string().regex(/^\d+$/, 'Wager must be a numeric string'),
   timePerMove: z.number().int().min(15).max(600).default(60), // seconds
+  variant: z.enum(['russian', 'american']).default('russian'),
 })
 
 export const JoinGameSchema = z.object({

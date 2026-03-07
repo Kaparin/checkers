@@ -15,6 +15,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   const router = useRouter()
   const [showLocal, setShowLocal] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [localVariant, setLocalVariant] = useState<'russian' | 'american'>('russian')
   const [openGames, setOpenGames] = useState<GameListItem[]>([])
   const [activeGames, setActiveGames] = useState<GameListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,8 +51,8 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
     }
   }
 
-  async function handleCreate(wager: string, timePerMove: number) {
-    const { game } = await createGame(wager, timePerMove)
+  async function handleCreate(wager: string, timePerMove: number, variant: 'russian' | 'american') {
+    const { game } = await createGame(wager, timePerMove, variant)
     setShowCreate(false)
     router.push(`/game/${game.id}`)
   }
@@ -66,14 +67,31 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
       <div className="flex flex-col items-center gap-6">
         <div className="flex items-center justify-between w-full max-w-xl">
           <button
-            onClick={() => setShowLocal(false)}
+            onClick={() => { setShowLocal(false); setLocalVariant('russian') }}
             className="text-sm text-text-secondary hover:text-text transition-colors"
           >
             &larr; Back to lobby
           </button>
-          <span className="text-sm font-medium text-text-secondary">Local Game (2 players)</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLocalVariant('russian')}
+              className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
+                localVariant === 'russian' ? 'bg-accent text-white' : 'bg-bg-subtle text-text-secondary'
+              }`}
+            >
+              Russian
+            </button>
+            <button
+              onClick={() => setLocalVariant('american')}
+              className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
+                localVariant === 'american' ? 'bg-accent text-white' : 'bg-bg-subtle text-text-secondary'
+              }`}
+            >
+              American
+            </button>
+          </div>
         </div>
-        <CheckersBoard gameId="local" playerColor="white" localMode />
+        <CheckersBoard gameId="local" playerColor="white" localMode variant={localVariant} />
       </div>
     )
   }
@@ -156,9 +174,16 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-piece-black rounded-full" />
                   <div>
-                    <p className="text-sm font-medium">
-                      {game.blackPlayer?.slice(0, 8)}...{game.blackPlayer?.slice(-4)}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">
+                        {game.blackPlayer?.slice(0, 8)}...{game.blackPlayer?.slice(-4)}
+                      </p>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        game.variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-board-dark/10 text-board-dark'
+                      }`}>
+                        {game.variant === 'russian' ? 'RUS' : 'USA'}
+                      </span>
+                    </div>
                     <p className="text-xs text-text-muted">
                       {(Number(game.wager) / 1_000_000).toFixed(0)} COIN &middot; {game.timePerMove}s per move
                     </p>

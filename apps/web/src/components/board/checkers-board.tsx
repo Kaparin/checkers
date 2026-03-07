@@ -9,9 +9,9 @@ import {
   getValidMovesForPiece,
   getValidMoves,
   applyMove,
-  isValidMove,
   BOARD_SIZE,
   type GameState,
+  type GameVariant,
   type Position,
   type Move,
   type PieceColor,
@@ -22,6 +22,7 @@ interface CheckersBoardProps {
   gameId: string
   playerColor?: PieceColor
   localMode?: boolean
+  variant?: GameVariant
   externalState?: GameState
   onMove?: (from: Position, to: Position) => void
 }
@@ -30,11 +31,12 @@ export function CheckersBoard({
   gameId,
   playerColor = 'white',
   localMode = false,
+  variant = 'russian',
   externalState,
   onMove,
 }: CheckersBoardProps) {
   const { theme, setTheme, themes } = useBoardTheme()
-  const [internalState, setInternalState] = useState<GameState>(createInitialGameState)
+  const [internalState, setInternalState] = useState<GameState>(() => createInitialGameState(variant))
   const [selectedPiece, setSelectedPiece] = useState<Position | null>(null)
   const [validMoves, setValidMoves] = useState<Move[]>([])
   const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null)
@@ -46,6 +48,16 @@ export function CheckersBoard({
   const activeColor = localMode ? gameState.currentTurn : playerColor
   const isMyTurn = localMode ? true : gameState.currentTurn === playerColor
   const isGameOver = gameState.status !== 'playing' && gameState.status !== 'waiting'
+
+  // Reset board when variant changes (local mode)
+  useEffect(() => {
+    if (localMode && !externalState) {
+      setInternalState(createInitialGameState(variant))
+      setSelectedPiece(null)
+      setValidMoves([])
+      setLastMove(null)
+    }
+  }, [variant, localMode, externalState])
 
   // Clear selection when turn changes (opponent moved)
   useEffect(() => {
@@ -234,7 +246,8 @@ export function CheckersBoard({
       {/* Move counter + theme selector */}
       <div className="flex items-center gap-4">
         <span className="text-xs text-text-muted">
-          Move {gameState.moveCount} {localMode && '(local)'}
+          Move {gameState.moveCount} &middot; {gameState.variant === 'russian' ? 'Russian' : 'American'}
+          {localMode && ' (local)'}
         </span>
         <div className="flex gap-1">
           {themes.map(t => (

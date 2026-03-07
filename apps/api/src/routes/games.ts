@@ -8,7 +8,7 @@ import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
-import type { GameState } from '@checkers/shared'
+import type { GameState, GameVariant } from '@checkers/shared'
 
 export const gameRoutes = new Hono()
 
@@ -33,6 +33,7 @@ gameRoutes.get('/', zValidator('query', GameListSchema), async (c) => {
       whitePlayer: games.whitePlayer,
       winner: games.winner,
       status: games.status,
+      variant: games.variant,
       wager: games.wager,
       moveCount: games.moveCount,
       timePerMove: games.timePerMove,
@@ -62,22 +63,23 @@ gameRoutes.get('/:id', async (c) => {
 
 // Create game (auth required)
 gameRoutes.post('/', authMiddleware, zValidator('json', CreateGameSchema), async (c) => {
-  const { wager, timePerMove } = c.req.valid('json')
+  const { wager, timePerMove, variant } = c.req.valid('json')
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
 
-  const initialState = createInitialGameState()
+  const initialState = createInitialGameState(variant as GameVariant)
   initialState.status = 'waiting'
 
   const [game] = await db.insert(games).values({
     blackPlayer: address,
     wager,
     timePerMove,
+    variant,
     gameState: serializeGameState(initialState),
     status: 'waiting',
   }).returning()
 
-  broadcastToLobby({ type: WS_EVENTS.GAME_CREATED, game: { id: game.id, wager, blackPlayer: address, timePerMove } })
+  broadcastToLobby({ type: WS_EVENTS.GAME_CREATED, game: { id: game.id, wager, variant, blackPlayer: address, timePerMove } })
 
   return c.json({ game }, 201)
 })

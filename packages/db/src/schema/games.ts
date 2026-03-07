@@ -9,6 +9,9 @@ export const games = pgTable('games', {
   status: text('status', {
     enum: ['waiting', 'playing', 'black_wins', 'white_wins', 'draw', 'canceled', 'timeout'],
   }).notNull().default('waiting'),
+  variant: text('variant', {
+    enum: ['russian', 'american'],
+  }).notNull().default('russian'),
   wager: text('wager').notNull(), // micro COIN amount
   timePerMove: integer('time_per_move').notNull().default(60),
   gameState: jsonb('game_state').notNull(), // serialized GameState
