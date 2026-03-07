@@ -1,5 +1,6 @@
 export * from './schemas'
 export * from './constants'
+export * from './elo'
 export type {
   PieceColor,
   PieceType,

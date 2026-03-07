@@ -1,0 +1,21 @@
+{
+  "name": "Checkers — Play & Earn",
+  "short_name": "Checkers",
+  "description": "Play checkers with real wagers on Axiome blockchain",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafaf9",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

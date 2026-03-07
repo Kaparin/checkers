@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { CreateGameSchema, MakeMoveSchema, GameListSchema } from '@checkers/shared'
-import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState } from '@checkers/shared'
+import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState, calculateElo } from '@checkers/shared'
 import { games, gameMoves, users } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
@@ -171,13 +171,27 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
     finishedAt: isFinished ? new Date() : null,
   }).where(eq(games.id, gameId)).returning()
 
-  // Update user stats if game is over
+  // Update user stats + ELO if game is over
   if (isFinished && winner) {
     const loser = winner === game.blackPlayer ? game.whitePlayer : game.blackPlayer
+
+    // Fetch current ratings for ELO calculation
+    const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
+    const loserUser = loser ? (await db.select().from(users).where(eq(users.address, loser)).limit(1))[0] : null
+
+    let eloChange = { changeWinner: 0, changeLoser: 0, newRatingWinner: 1200, newRatingLoser: 1200 }
+    if (winnerUser && loserUser) {
+      eloChange = calculateElo(
+        winnerUser.elo, loserUser.elo,
+        winnerUser.gamesPlayed, loserUser.gamesPlayed,
+      )
+    }
+
     await db.update(users).set({
       gamesPlayed: sql`games_played + 1`,
       gamesWon: sql`games_won + 1`,
       totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+      elo: eloChange.newRatingWinner,
     }).where(eq(users.address, winner))
 
     if (loser) {
@@ -185,6 +199,7 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
         gamesPlayed: sql`games_played + 1`,
         gamesLost: sql`games_lost + 1`,
         totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
+        elo: eloChange.newRatingLoser,
       }).where(eq(users.address, loser))
     }
   }
@@ -218,5 +233,96 @@ gameRoutes.post('/:id/cancel', authMiddleware, async (c) => {
 
   broadcastToLobby({ type: WS_EVENTS.GAME_CANCELED, gameId })
 
+  return c.json({ game: updated })
+})
+
+// Resign (auth required, during active game)
+gameRoutes.post('/:id/resign', authMiddleware, async (c) => {
+  const address = c.get('address' as never) as string
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id') as string
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
+  if (game.blackPlayer !== address && game.whitePlayer !== address) {
+    return c.json({ error: 'You are not in this game' }, 403)
+  }
+
+  const winner = address === game.blackPlayer ? game.whitePlayer : game.blackPlayer
+  const winStatus = address === game.blackPlayer ? 'white_wins' : 'black_wins'
+
+  const [updated] = await db.update(games).set({
+    status: winStatus,
+    winner,
+    finishedAt: new Date(),
+    currentTurnDeadline: null,
+  }).where(eq(games.id, gameId)).returning()
+
+  // ELO update
+  if (winner) {
+    const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
+    const [loserUser] = await db.select().from(users).where(eq(users.address, address)).limit(1)
+    if (winnerUser && loserUser) {
+      const elo = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
+      await db.update(users).set({
+        gamesPlayed: sql`games_played + 1`, gamesWon: sql`games_won + 1`,
+        totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`, elo: elo.newRatingWinner,
+      }).where(eq(users.address, winner))
+      await db.update(users).set({
+        gamesPlayed: sql`games_played + 1`, gamesLost: sql`games_lost + 1`, elo: elo.newRatingLoser,
+      }).where(eq(users.address, address))
+    }
+  }
+
+  broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, winner, reason: 'resign' })
+  return c.json({ game: updated })
+})
+
+// Draw offer
+gameRoutes.post('/:id/draw-offer', authMiddleware, async (c) => {
+  const address = c.get('address' as never) as string
+  const gameId = c.req.param('id') as string
+
+  broadcastToGame(gameId, { type: 'draw:offer', from: address })
+  return c.json({ success: true })
+})
+
+// Accept draw
+gameRoutes.post('/:id/draw-accept', authMiddleware, async (c) => {
+  const address = c.get('address' as never) as string
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id') as string
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
+  if (game.blackPlayer !== address && game.whitePlayer !== address) {
+    return c.json({ error: 'You are not in this game' }, 403)
+  }
+
+  const [updated] = await db.update(games).set({
+    status: 'draw',
+    finishedAt: new Date(),
+    currentTurnDeadline: null,
+  }).where(eq(games.id, gameId)).returning()
+
+  // ELO draw update
+  if (game.blackPlayer && game.whitePlayer) {
+    const [blackUser] = await db.select().from(users).where(eq(users.address, game.blackPlayer)).limit(1)
+    const [whiteUser] = await db.select().from(users).where(eq(users.address, game.whitePlayer)).limit(1)
+    if (blackUser && whiteUser) {
+      const { calculateEloDraw } = await import('@checkers/shared')
+      const elo = calculateEloDraw(blackUser.elo, whiteUser.elo, blackUser.gamesPlayed, whiteUser.gamesPlayed)
+      await db.update(users).set({
+        gamesPlayed: sql`games_played + 1`, gamesDraw: sql`games_draw + 1`, elo: elo.newRatingA,
+      }).where(eq(users.address, game.blackPlayer))
+      await db.update(users).set({
+        gamesPlayed: sql`games_played + 1`, gamesDraw: sql`games_draw + 1`, elo: elo.newRatingB,
+      }).where(eq(users.address, game.whitePlayer))
+    }
+  }
+
+  broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, reason: 'draw' })
   return c.json({ game: updated })
 })

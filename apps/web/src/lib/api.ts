@@ -99,6 +99,18 @@ export async function cancelGame(gameId: string) {
   return request<{ game: GameFull }>(`/games/${gameId}/cancel`, { method: 'POST' })
 }
 
+export async function resignGame(gameId: string) {
+  return request<{ game: GameFull }>(`/games/${gameId}/resign`, { method: 'POST' })
+}
+
+export async function offerDraw(gameId: string) {
+  return request<{ success: boolean }>(`/games/${gameId}/draw-offer`, { method: 'POST' })
+}
+
+export async function acceptDraw(gameId: string) {
+  return request<{ game: GameFull }>(`/games/${gameId}/draw-accept`, { method: 'POST' })
+}
+
 // ── Users ────────────────────────────────────────────────────────────
 
 export async function getLeaderboard() {

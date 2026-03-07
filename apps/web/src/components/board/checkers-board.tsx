@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
+import { playMoveSound, playCaptureSound, playKingSound } from '@/lib/sounds'
+import { useBoardTheme, BOARD_THEMES, type BoardTheme } from '@/hooks/use-board-theme'
 import {
   createInitialGameState,
   getValidMovesForPiece,
@@ -31,6 +33,7 @@ export function CheckersBoard({
   externalState,
   onMove,
 }: CheckersBoardProps) {
+  const { theme, setTheme, themes } = useBoardTheme()
   const [internalState, setInternalState] = useState<GameState>(createInitialGameState)
   const [selectedPiece, setSelectedPiece] = useState<Position | null>(null)
   const [validMoves, setValidMoves] = useState<Move[]>([])
@@ -69,13 +72,21 @@ export function CheckersBoard({
     if (selectedPiece) {
       const move = validMoves.find(m => m.to.row === row && m.to.col === col)
       if (move) {
+        // Sound effects
+        if (move.captures.length > 0) {
+          playCaptureSound()
+        } else {
+          playMoveSound()
+        }
+        if (move.promotion) {
+          setTimeout(playKingSound, 200)
+        }
+
         if (localMode) {
-          // Apply locally
           const newState = applyMove(gameState, move)
           setGameState(newState)
         }
 
-        // Notify parent
         if (onMove) {
           onMove(move.from, move.to)
         }
@@ -180,11 +191,13 @@ export function CheckersBoard({
                     relative w-14 h-14 sm:w-16 sm:h-16 md:w-[72px] md:h-[72px]
                     flex items-center justify-center
                     transition-colors cursor-pointer
-                    ${isDark ? 'bg-board-dark' : 'bg-board-light'}
                     ${selected ? 'ring-2 ring-inset ring-accent' : ''}
-                    ${wasLastMove && isDark ? 'bg-amber-700/70' : ''}
-                    ${wasLastMove && !isDark ? 'bg-amber-200/80' : ''}
                   `}
+                  style={{
+                    backgroundColor: wasLastMove
+                      ? theme.highlightFrom
+                      : isDark ? theme.dark : theme.light,
+                  }}
                 >
                   {/* Valid move dot */}
                   {validTarget && !piece && (
@@ -218,9 +231,24 @@ export function CheckersBoard({
       {/* Captured pieces (bottom = my captured) */}
       <CapturedPieces color="white" count={whiteCaptured} />
 
-      {/* Move counter */}
-      <div className="text-xs text-text-muted">
-        Move {gameState.moveCount} {localMode && '(local game)'}
+      {/* Move counter + theme selector */}
+      <div className="flex items-center gap-4">
+        <span className="text-xs text-text-muted">
+          Move {gameState.moveCount} {localMode && '(local)'}
+        </span>
+        <div className="flex gap-1">
+          {themes.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              title={t.name}
+              className={`w-5 h-5 rounded-full border-2 transition-all ${
+                t.id === theme.id ? 'border-accent scale-110' : 'border-transparent'
+              }`}
+              style={{ background: `linear-gradient(135deg, ${t.light} 50%, ${t.dark} 50%)` }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

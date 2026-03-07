@@ -5,6 +5,13 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Checkers — Play & Earn',
   description: 'Play checkers with real wagers on Axiome blockchain',
+  manifest: '/manifest.json',
+  themeColor: '#7c3aed',
+  openGraph: {
+    title: 'Checkers — Play & Earn',
+    description: 'Play checkers with real wagers on Axiome blockchain',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
