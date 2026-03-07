@@ -1,0 +1,191 @@
+# Checkers — Roadmap
+
+## Current State (2026-03-07)
+
+Project built and pushed to GitHub. Core functionality complete:
+- Full game engine: Russian checkers (primary) + American checkers (alternative)
+- Online multiplayer via WebSocket with real-time moves
+- Game lobby with auto-refresh, invite links
+- Move timer with auto-forfeit on timeout
+- ELO rating system (K=32 provisional, K=16 established)
+- Leaderboard, game history pages
+- 5 board themes, sound effects (Web Audio API)
+- Draw offer/accept, resign, spectator mode
+- Light minimalistic UI (Next.js 15 + Tailwind CSS 4)
+
+### Infrastructure Status
+- **GitHub**: https://github.com/Kaparin/checkers.git
+- **Neon DB**: Project `odd-cell-67095538`, schema pushed (users, games, game_moves, sessions)
+- **Vercel**: https://checkers-web.vercel.app (needs env vars: NEXT_PUBLIC_API_URL, NEXT_PUBLIC_WS_URL)
+- **Railway**: Deploying (fixing pnpm install via npx)
+
+---
+
+## Phase 1 — Minimal Production (no blockchain)
+
+**Goal**: Playable online checkers with rating system, no wagers.
+
+### TODO:
+- [ ] Fix Railway deploy (npx pnpm approach, awaiting build result)
+- [ ] Set Vercel env vars:
+  - `NEXT_PUBLIC_API_URL` = Railway public URL (https)
+  - `NEXT_PUBLIC_WS_URL` = Railway public URL (wss)
+- [ ] Set Railway env vars:
+  - `CORS_ORIGIN` = `https://checkers-web.vercel.app,http://localhost:3000`
+- [ ] Verify end-to-end: create game -> join -> play -> finish -> ELO update
+- [ ] Test Russian + American variants both work online
+
+### Nice-to-haves for Phase 1:
+- [ ] Simple auth without wallet (temporary — just address input or guest mode)
+- [ ] Mobile responsive tweaks (board sizing on small screens)
+- [ ] SEO meta tags, OG image for sharing
+
+---
+
+## Phase 2 — Blockchain Integration
+
+### 2a. Wallet Auth
+Copy pattern from coinflip project (`apps/api/src/routes/auth.ts` in coinflip):
+- [ ] "Connect Wallet" button in header (Axiome wallet extension)
+- [ ] Sign nonce with wallet private key
+- [ ] Backend verifies signature, creates session with Bearer token
+- [ ] sessionStorage for token + address (same as coinflip)
+- [ ] iOS Safari fallback: Bearer token in sessionStorage, WS passes `?token=` query param
+
+### 2b. Game Smart Contract (CosmWasm)
+Contract: `contracts/checkers-vault/` (Rust, CosmWasm 1.4)
+
+**Messages:**
+- `CreateGame { variant, time_per_move }` — locks wager (native AXM initially)
+- `JoinGame { game_id }` — locks opponent's wager
+- `ResolveGame { game_id, winner }` — called by relayer, pays winner (2x wager minus 10% commission)
+- `CancelGame { game_id }` — refund creator (only before opponent joins)
+- `ClaimTimeout { game_id }` — safety net if relayer doesn't resolve within deadline
+
+**Config:**
+- Admin: relayer address
+- Commission: 1000 BPS (10%)
+- Treasury: receives commission
+- Initially native AXM; later switch to CW20 SHASHKA
+
+**Testing:**
+- Unit tests with `cw-multi-test`
+- Full lifecycle: create -> join -> resolve, create -> cancel, create -> join -> timeout claim
+
+### 2c. Relayer Service
+Copy from coinflip (`apps/api/src/services/relayer.ts`):
+- [ ] Sequence manager with mutex (prevent nonce races)
+- [ ] MsgExec via x/authz (execute contract on behalf of users)
+- [ ] Background broadcast queue
+- [ ] Retry logic with sequence refresh on mismatch
+
+### 2d. Indexer
+Copy from coinflip (`apps/api/src/services/indexer.ts`):
+- [ ] Poll chain blocks for contract events
+- [ ] Sync on-chain game state with PostgreSQL
+- [ ] Terminal state protection (`WHERE status IN (...)` to prevent regressions)
+- [ ] WebSocket broadcast on state changes
+
+### 2e. Authz + Feegrant Setup
+- [ ] Script: grant `ContractExecutionAuthorization` to relayer for checkers contract
+- [ ] `AcceptedMessageKeysFilter` scoped to: create_game, join_game, resolve_game, cancel_game
+- [ ] NEVER use `GenericAuthorization` on `MsgExecuteContract`
+- [ ] Feegrant from treasury to users for gas sponsorship
+
+---
+
+## Phase 3 — Token SHASHKA
+
+**Token**: CW20 "SHASHKA" (ticker: SHASHKA, decimals: 6)
+
+### 3a. CW20 Token Contract
+- [ ] Deploy standard `cw20-base` contract
+- [ ] Initial supply: TBD
+- [ ] Minter: admin/treasury
+
+### 3b. Presale Contract
+- [ ] AXM -> SHASHKA swap contract (same pattern as coinflip presale)
+- [ ] Configurable rate, min/max purchase
+
+### 3c. Switch Game Contract to CW20
+- [ ] Update game contract to accept CW20 `Send` with `Cw20ReceiveMsg`
+- [ ] Or deploy new contract version (Code ID bump)
+- [ ] Update relayer to use CW20 transfer instead of native send
+
+### 3d. Contract Addresses (to be filled)
+- **SHASHKA CW20**: `axm...` (TBD)
+- **Checkers Game Contract (native AXM)**: `axm...` (TBD)
+- **Checkers Game Contract (CW20 SHASHKA)**: `axm...` (TBD)
+- **Presale Contract**: `axm...` (TBD)
+
+---
+
+## Phase 4 — Social & Economy Features
+
+### Referral System
+Copy from coinflip:
+- [ ] Referral codes table, BPS rewards per game
+- [ ] Referral balance + withdrawal
+- [ ] Max 500 BPS (5%) per bet
+- [ ] UI: referral link sharing, referral stats page
+
+### Staking
+- [ ] SHASHKA staking contract (Synthetix-style rewards)
+- [ ] 2% of each game's commission goes to staking pool
+- [ ] Staking UI page
+
+### Shop & VIP
+- [ ] Board themes purchasable with SHASHKA
+- [ ] VIP subscription (premium features)
+- [ ] Custom piece skins
+
+### Jackpot System
+- [ ] Progressive jackpot from game commissions
+- [ ] Random trigger on game completion
+- [ ] Multiple tiers
+
+### Social
+- [ ] In-game chat (text messages during game)
+- [ ] Player profiles with avatar, stats, game history
+- [ ] Friends list
+- [ ] Telegram bot notifications
+
+---
+
+## Phase 5 — Polish & Scale
+
+- [ ] Mobile optimization (touch drag-and-drop for pieces)
+- [ ] PWA: offline local games, install prompt
+- [ ] Game replay viewer (step through any completed game)
+- [ ] Admin dashboard (active games, revenue, user stats)
+- [ ] Commission tracking / treasury ledger
+- [ ] Tournaments (bracket system)
+- [ ] AI opponent (for solo practice)
+- [ ] Internationalization (RU/EN)
+
+---
+
+## Tech Stack Reference
+
+| Layer      | Technology                              |
+|------------|-----------------------------------------|
+| Frontend   | Next.js 15, React 19, Tailwind CSS 4   |
+| Backend    | Hono (Node.js 22), WebSocket (ws)      |
+| Database   | PostgreSQL (Neon), Drizzle ORM          |
+| Blockchain | Axiome Chain (Cosmos SDK), CosmWasm 1.4 |
+| Token      | CW20 SHASHKA (future)                  |
+| Hosting    | Vercel (web), Railway (API), Neon (DB)  |
+| Monorepo   | pnpm workspaces + Turborepo            |
+
+## Key Files
+
+- Game engines: `packages/shared/src/game/`
+  - `engine.ts` — American checkers + types + serialization
+  - `russian-engine.ts` — Russian checkers
+  - `variants.ts` — unified dispatch layer
+  - `common.ts` — shared utilities
+- API routes: `apps/api/src/routes/games.ts`
+- WebSocket: `apps/api/src/ws/handler.ts`
+- Board UI: `apps/web/src/components/board/checkers-board.tsx`
+- Game page: `apps/web/src/app/game/[id]/page.tsx`
+- DB schema: `packages/db/src/schema/`
