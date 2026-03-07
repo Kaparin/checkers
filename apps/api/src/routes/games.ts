@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { CreateGameSchema, MakeMoveSchema, GameListSchema } from '@checkers/shared'
-import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState, calculateElo } from '@checkers/shared'
+import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState, calculateElo, calculateEloDraw } from '@checkers/shared'
 import { games, gameMoves, users } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
@@ -312,7 +312,6 @@ gameRoutes.post('/:id/draw-accept', authMiddleware, async (c) => {
     const [blackUser] = await db.select().from(users).where(eq(users.address, game.blackPlayer)).limit(1)
     const [whiteUser] = await db.select().from(users).where(eq(users.address, game.whitePlayer)).limit(1)
     if (blackUser && whiteUser) {
-      const { calculateEloDraw } = await import('@checkers/shared')
       const elo = calculateEloDraw(blackUser.elo, whiteUser.elo, blackUser.gamesPlayed, whiteUser.gamesPlayed)
       await db.update(users).set({
         gamesPlayed: sql`games_played + 1`, gamesDraw: sql`games_draw + 1`, elo: elo.newRatingA,

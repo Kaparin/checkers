@@ -12,7 +12,8 @@
     "db:migrate": "pnpm --filter @checkers/db run migrate",
     "db:push": "pnpm --filter @checkers/db run push",
     "db:studio": "pnpm --filter @checkers/db run studio",
-    "format": "prettier --write \"**/*.{ts,tsx,json,css}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json,css}\"",
+    "start": "pnpm --filter @checkers/api run start"
   },
   "devDependencies": {
     "prettier": "^3.4.2",
