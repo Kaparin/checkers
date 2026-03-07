@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { CreateGameModal } from '@/components/ui/create-game-modal'
+import { useWebSocket } from '@/hooks/use-websocket'
 import { listGames, createGame, joinGame, getStoredAddress, type GameListItem } from '@/lib/api'
 
 interface GameLobbyProps {
@@ -18,10 +19,21 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   const [activeGames, setActiveGames] = useState<GameListItem[]>([])
   const [loading, setLoading] = useState(true)
   const address = getStoredAddress()
+  const { subscribe } = useWebSocket()
 
   useEffect(() => {
     loadGames()
   }, [])
+
+  // Auto-refresh lobby when games are created/joined/canceled
+  useEffect(() => {
+    const unsub = subscribe((msg) => {
+      if (msg.type === 'game:created' || msg.type === 'game:joined' || msg.type === 'game:canceled') {
+        loadGames()
+      }
+    })
+    return unsub
+  }, [subscribe])
 
   async function loadGames() {
     try {

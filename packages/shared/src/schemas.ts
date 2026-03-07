@@ -20,15 +20,14 @@ export const JoinGameSchema = z.object({
 })
 
 export const MakeMoveSchema = z.object({
-  gameId: z.string().uuid(),
   from: z.object({ row: z.number().int().min(0).max(7), col: z.number().int().min(0).max(7) }),
   to: z.object({ row: z.number().int().min(0).max(7), col: z.number().int().min(0).max(7) }),
 })
 
 export const GameListSchema = z.object({
   status: z.enum(['waiting', 'playing', 'finished']).optional(),
-  limit: z.number().int().min(1).max(50).default(20),
-  offset: z.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
 })
 
 // ── WS Messages ──────────────────────────────────────────────────────

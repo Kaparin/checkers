@@ -91,7 +91,7 @@ export async function joinGame(gameId: string) {
 export async function makeMove(gameId: string, from: { row: number; col: number }, to: { row: number; col: number }) {
   return request<{ game: GameFull; move: unknown; gameState: unknown }>(`/games/${gameId}/move`, {
     method: 'POST',
-    body: JSON.stringify({ gameId, from, to }),
+    body: JSON.stringify({ from, to }),
   })
 }
 
