@@ -2,7 +2,7 @@
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["npm install -g pnpm@9.15.4 && pnpm install"]
+cmds = ["COREPACK_INTEGRITY_KEYS=0 corepack enable && pnpm install"]
 
 [start]
 cmd = "pnpm --filter @checkers/api run start"
