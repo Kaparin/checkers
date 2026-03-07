@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server'
+import type { Server } from 'node:http'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -7,6 +8,7 @@ import { authRoutes } from './routes/auth'
 import { gameRoutes } from './routes/games'
 import { userRoutes } from './routes/users'
 import { setupWebSocket } from './ws/handler'
+import { startTimeoutChecker } from './services/timeout-checker'
 
 const app = new Hono()
 
@@ -39,7 +41,10 @@ const port = Number(process.env.PORT) || 3001
 const server = serve({ fetch: app.fetch, port })
 
 // WebSocket
-setupWebSocket(server, db)
+setupWebSocket(server as unknown as Server, db)
+
+// Timeout checker (every 5s)
+startTimeoutChecker(db)
 
 console.log(`[checkers-api] Running on :${port}`)
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import {
   createInitialGameState,
   getValidMovesForPiece,
@@ -19,19 +19,36 @@ import { CheckersPiece } from './checkers-piece'
 interface CheckersBoardProps {
   gameId: string
   playerColor?: PieceColor
-  localMode?: boolean // both players on same device
+  localMode?: boolean
+  externalState?: GameState
+  onMove?: (from: Position, to: Position) => void
 }
 
-export function CheckersBoard({ gameId, playerColor = 'white', localMode = false }: CheckersBoardProps) {
-  const [gameState, setGameState] = useState<GameState>(createInitialGameState)
+export function CheckersBoard({
+  gameId,
+  playerColor = 'white',
+  localMode = false,
+  externalState,
+  onMove,
+}: CheckersBoardProps) {
+  const [internalState, setInternalState] = useState<GameState>(createInitialGameState)
   const [selectedPiece, setSelectedPiece] = useState<Position | null>(null)
   const [validMoves, setValidMoves] = useState<Move[]>([])
   const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null)
 
-  // In local mode, both colors are playable
+  // Use external state if provided, otherwise internal
+  const gameState = externalState ?? internalState
+  const setGameState = externalState ? () => {} : setInternalState
+
   const activeColor = localMode ? gameState.currentTurn : playerColor
   const isMyTurn = localMode ? true : gameState.currentTurn === playerColor
   const isGameOver = gameState.status !== 'playing' && gameState.status !== 'waiting'
+
+  // Clear selection when turn changes (opponent moved)
+  useEffect(() => {
+    setSelectedPiece(null)
+    setValidMoves([])
+  }, [gameState.currentTurn])
 
   // Update valid moves when selection changes
   useEffect(() => {
@@ -52,14 +69,20 @@ export function CheckersBoard({ gameId, playerColor = 'white', localMode = false
     if (selectedPiece) {
       const move = validMoves.find(m => m.to.row === row && m.to.col === col)
       if (move) {
-        // Apply move locally (optimistic)
-        const newState = applyMove(gameState, move)
-        setGameState(newState)
+        if (localMode) {
+          // Apply locally
+          const newState = applyMove(gameState, move)
+          setGameState(newState)
+        }
+
+        // Notify parent
+        if (onMove) {
+          onMove(move.from, move.to)
+        }
+
         setLastMove({ from: move.from, to: move.to })
         setSelectedPiece(null)
         setValidMoves([])
-
-        // TODO: Send to server via API/WS
         return
       }
     }
@@ -77,7 +100,7 @@ export function CheckersBoard({ gameId, playerColor = 'white', localMode = false
 
     // Deselect
     setSelectedPiece(null)
-  }, [gameState, selectedPiece, validMoves, isMyTurn, isGameOver, playerColor])
+  }, [gameState, selectedPiece, validMoves, isMyTurn, isGameOver, activeColor, localMode, onMove, setGameState])
 
   const isValidTarget = (row: number, col: number) =>
     validMoves.some(m => m.to.row === row && m.to.col === col)
@@ -89,48 +112,57 @@ export function CheckersBoard({ gameId, playerColor = 'white', localMode = false
     lastMove && ((lastMove.from.row === row && lastMove.from.col === col) ||
                  (lastMove.to.row === row && lastMove.to.col === col))
 
-  // Flip board for white player (white plays from bottom)
-  const rows = playerColor === 'white'
+  // Board orientation: row 0 at top for black, row 7 at top for white
+  const rows = playerColor === 'white' && !localMode
     ? Array.from({ length: BOARD_SIZE }, (_, i) => i)
-    : Array.from({ length: BOARD_SIZE }, (_, i) => BOARD_SIZE - 1 - i)
+    : localMode
+      ? Array.from({ length: BOARD_SIZE }, (_, i) => i)
+      : Array.from({ length: BOARD_SIZE }, (_, i) => BOARD_SIZE - 1 - i)
 
-  const cols = playerColor === 'white'
+  const cols = playerColor === 'white' && !localMode
     ? Array.from({ length: BOARD_SIZE }, (_, i) => i)
-    : Array.from({ length: BOARD_SIZE }, (_, i) => BOARD_SIZE - 1 - i)
+    : localMode
+      ? Array.from({ length: BOARD_SIZE }, (_, i) => i)
+      : Array.from({ length: BOARD_SIZE }, (_, i) => BOARD_SIZE - 1 - i)
+
+  // Captured pieces
+  const blackCaptured = 12 - gameState.blackPieces
+  const whiteCaptured = 12 - gameState.whitePieces
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-4">
       {/* Game status */}
-      <div className="text-center">
-        {isGameOver ? (
-          <div className="text-lg font-semibold">
-            {gameState.status === 'black_wins' && (playerColor === 'black' ? 'You won!' : 'You lost')}
-            {gameState.status === 'white_wins' && (playerColor === 'white' ? 'You won!' : 'You lost')}
-            {gameState.status === 'draw' && 'Draw!'}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-text-secondary">
-            <div className={`w-3 h-3 rounded-full ${isMyTurn ? 'bg-success animate-pulse' : 'bg-text-muted'}`} />
-            {isMyTurn ? 'Your turn' : "Opponent's turn"}
-          </div>
-        )}
-      </div>
+      {!externalState && (
+        <div className="text-center">
+          {isGameOver ? (
+            <div className="px-4 py-2 rounded-xl bg-bg-card border border-border">
+              <span className="text-lg font-semibold">
+                {gameState.status === 'black_wins' && 'Black wins!'}
+                {gameState.status === 'white_wins' && 'White wins!'}
+                {gameState.status === 'draw' && 'Draw!'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-text-secondary">
+              <div className={`w-3 h-3 rounded-full ${
+                gameState.currentTurn === 'black' ? 'bg-piece-black' : 'bg-piece-white border border-border'
+              }`} />
+              <span className="font-medium">
+                {localMode
+                  ? `${gameState.currentTurn === 'black' ? 'Black' : 'White'}'s turn`
+                  : isMyTurn ? 'Your turn' : "Opponent's turn"
+                }
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Piece counts */}
-      <div className="flex items-center gap-8 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-piece-black rounded-full border border-border" />
-          <span className="font-medium">{gameState.blackPieces}</span>
-        </div>
-        <span className="text-text-muted">vs</span>
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-piece-white rounded-full border border-border" />
-          <span className="font-medium">{gameState.whitePieces}</span>
-        </div>
-      </div>
+      {/* Captured pieces (top = opponent's captured) */}
+      <CapturedPieces color="black" count={blackCaptured} />
 
       {/* Board */}
-      <div className="rounded-xl overflow-hidden shadow-lg border-2 border-board-dark/30">
+      <div className="rounded-xl overflow-hidden shadow-lg border-2 border-board-dark/30 select-none">
         {rows.map((row) => (
           <div key={row} className="flex">
             {cols.map((col) => {
@@ -150,18 +182,18 @@ export function CheckersBoard({ gameId, playerColor = 'white', localMode = false
                     transition-colors cursor-pointer
                     ${isDark ? 'bg-board-dark' : 'bg-board-light'}
                     ${selected ? 'ring-2 ring-inset ring-accent' : ''}
-                    ${wasLastMove && isDark ? 'bg-amber-600/80' : ''}
-                    ${wasLastMove && !isDark ? 'bg-amber-200' : ''}
+                    ${wasLastMove && isDark ? 'bg-amber-700/70' : ''}
+                    ${wasLastMove && !isDark ? 'bg-amber-200/80' : ''}
                   `}
                 >
-                  {/* Valid move indicator */}
+                  {/* Valid move dot */}
                   {validTarget && !piece && (
                     <div className="absolute w-4 h-4 bg-success/50 rounded-full" />
                   )}
 
-                  {/* Valid capture indicator */}
+                  {/* Valid capture ring */}
                   {validTarget && piece && (
-                    <div className="absolute inset-1 rounded-full border-3 border-danger/60" />
+                    <div className="absolute inset-1.5 rounded-full border-[3px] border-danger/60" />
                   )}
 
                   {/* Piece */}
@@ -183,10 +215,33 @@ export function CheckersBoard({ gameId, playerColor = 'white', localMode = false
         ))}
       </div>
 
-      {/* Move count */}
+      {/* Captured pieces (bottom = my captured) */}
+      <CapturedPieces color="white" count={whiteCaptured} />
+
+      {/* Move counter */}
       <div className="text-xs text-text-muted">
-        Move {gameState.moveCount}
+        Move {gameState.moveCount} {localMode && '(local game)'}
       </div>
+    </div>
+  )
+}
+
+function CapturedPieces({ color, count }: { color: PieceColor; count: number }) {
+  if (count === 0) return <div className="h-6" />
+  return (
+    <div className="flex gap-1 h-6 items-center">
+      {Array.from({ length: count }, (_, i) => (
+        <div
+          key={i}
+          className={`w-5 h-5 rounded-full ${
+            color === 'black'
+              ? 'bg-piece-black/70'
+              : 'bg-piece-white/70 border border-border/50'
+          }`}
+          style={{ marginLeft: i > 0 ? -6 : 0 }}
+        />
+      ))}
+      <span className="text-xs text-text-muted ml-1">x{count}</span>
     </div>
   )
 }

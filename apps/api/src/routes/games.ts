@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { CreateGameSchema, MakeMoveSchema, GameListSchema } from '@checkers/shared'
-import { createInitialGameState, isValidMove, applyMove, serializeGameState } from '@checkers/shared'
+import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState } from '@checkers/shared'
 import { games, gameMoves, users } from '@checkers/db'
 import type { Db } from '@checkers/db'
-import { eq, desc, sql, or, and, inArray } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { authMiddleware } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
@@ -52,7 +52,7 @@ gameRoutes.get('/', zValidator('query', GameListSchema), async (c) => {
 // Get single game
 gameRoutes.get('/:id', async (c) => {
   const db = c.get('db' as never) as Db
-  const id = c.req.param('id')
+  const id = c.req.param('id') as string
 
   const [game] = await db.select().from(games).where(eq(games.id, id)).limit(1)
   if (!game) return c.json({ error: 'Game not found' }, 404)
@@ -67,7 +67,6 @@ gameRoutes.post('/', authMiddleware, zValidator('json', CreateGameSchema), async
   const db = c.get('db' as never) as Db
 
   const initialState = createInitialGameState()
-  // Creator is black player
   initialState.status = 'waiting'
 
   const [game] = await db.insert(games).values({
@@ -87,7 +86,7 @@ gameRoutes.post('/', authMiddleware, zValidator('json', CreateGameSchema), async
 gameRoutes.post('/:id/join', authMiddleware, async (c) => {
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
-  const gameId = c.req.param('id')
+  const gameId = c.req.param('id') as string
 
   const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
   if (!game) return c.json({ error: 'Game not found' }, 404)
@@ -97,8 +96,7 @@ gameRoutes.post('/:id/join', authMiddleware, async (c) => {
   const now = new Date()
   const deadline = new Date(now.getTime() + game.timePerMove * 1000)
 
-  // Update game state to playing
-  const state = JSON.parse(game.gameState as string) as { b: string; t: string; s: string }
+  const state = JSON.parse(game.gameState as string)
   state.s = 'playing'
   state.t = 'black'
 
@@ -121,23 +119,18 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
   const { from, to } = c.req.valid('json')
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
-  const gameId = c.req.param('id')
+  const gameId = c.req.param('id') as string
 
   const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
   if (!game) return c.json({ error: 'Game not found' }, 404)
   if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
 
-  // Check it's the player's turn
+  // Parse game state
   const stateRaw = game.gameState as string
-  const state: GameState = (() => {
-    const d = JSON.parse(stateRaw)
-    // Handle both serialized format and direct format
-    if (d.b && typeof d.b === 'string') {
-      const { deserializeGameState } = require('@checkers/shared')
-      return deserializeGameState(stateRaw)
-    }
-    return d as GameState
-  })()
+  const parsed = JSON.parse(stateRaw)
+  const state: GameState = parsed.b && typeof parsed.b === 'string'
+    ? deserializeGameState(stateRaw)
+    : parsed as GameState
 
   const currentPlayer = state.currentTurn === 'black' ? game.blackPlayer : game.whitePlayer
   if (currentPlayer !== address) return c.json({ error: 'Not your turn' }, 403)
@@ -159,7 +152,7 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
     fromCol: from.col,
     toRow: to.row,
     toCol: to.col,
-    captures: validMove.captures.map(c => [c.row, c.col] as [number, number]),
+    captures: validMove.captures.map(cap => [cap.row, cap.col] as [number, number]),
     promotion: validMove.promotion ? 1 : 0,
   })
 
@@ -169,12 +162,10 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
     : newState.status === 'white_wins' ? game.whitePlayer
     : null
 
-  const dbStatus = isFinished ? newState.status : 'playing'
-
   const [updated] = await db.update(games).set({
     gameState: serializeGameState(newState),
     moveCount: newState.moveCount,
-    status: dbStatus,
+    status: isFinished ? newState.status : 'playing',
     currentTurnDeadline: isFinished ? null : deadline,
     winner,
     finishedAt: isFinished ? new Date() : null,
@@ -213,7 +204,7 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
 gameRoutes.post('/:id/cancel', authMiddleware, async (c) => {
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
-  const gameId = c.req.param('id')
+  const gameId = c.req.param('id') as string
 
   const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
   if (!game) return c.json({ error: 'Game not found' }, 404)
