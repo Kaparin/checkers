@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./game": "./src/game/engine.ts"
+    "./game": "./src/game/engine.ts",
+    "./chain": "./src/chain.ts"
   },
   "dependencies": {
     "zod": "^3.24.1"

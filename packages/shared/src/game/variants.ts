@@ -13,7 +13,7 @@ export function getValidMoves(state: GameState): Move[] {
 }
 
 export function getValidMovesForPiece(state: GameState, pos: Position): Move[] {
-  if (state.variant === 'american') return getValidMovesForPieceAmerican(state)
+  if (state.variant === 'american') return getValidMovesForPieceAmerican(state, pos)
   return getValidMovesForPieceRussian(state, pos)
 }
 

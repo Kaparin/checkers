@@ -12,6 +12,9 @@
   "dependencies": {
     "@checkers/db": "workspace:*",
     "@checkers/shared": "workspace:*",
+    "@cosmjs/amino": "^0.38.1",
+    "@cosmjs/crypto": "^0.38.1",
+    "@cosmjs/encoding": "^0.38.1",
     "@hono/node-server": "^1.13.8",
     "@hono/zod-validator": "^0.4.2",
     "drizzle-orm": "^0.38.3",

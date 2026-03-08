@@ -1,34 +1,13 @@
+import { getAuthHeaders, getStoredAddress } from './auth-headers'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return sessionStorage.getItem('checkers_token')
-}
-
-export function setToken(token: string) {
-  sessionStorage.setItem('checkers_token', token)
-}
-
-export function clearToken() {
-  sessionStorage.removeItem('checkers_token')
-}
-
-export function getStoredAddress(): string | null {
-  if (typeof window === 'undefined') return null
-  return sessionStorage.getItem('checkers_address')
-}
-
-export function setStoredAddress(address: string) {
-  sessionStorage.setItem('checkers_address', address)
-}
+export { getStoredAddress }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken()
   const headers: Record<string, string> = {
+    ...getAuthHeaders(),
     ...((options?.headers as Record<string, string>) || {}),
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
   }
   if (options?.body && typeof options.body === 'string') {
     headers['Content-Type'] = 'application/json'
@@ -37,6 +16,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: 'include', // send cookies
   })
 
   if (!res.ok) {
@@ -49,18 +29,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
-export async function login(address: string, signature: string, pubkey: string) {
-  const data = await request<{ token: string; address: string }>('/auth/login', {
+export async function getChallenge(address: string) {
+  return request<{ nonce: string }>(`/auth/challenge?address=${encodeURIComponent(address)}`)
+}
+
+export async function verifyAuth(address: string, signature: string, pubkey: string) {
+  return request<{ token: string; address: string; expiresAt: string }>('/auth/verify', {
     method: 'POST',
     body: JSON.stringify({ address, signature, pubkey }),
   })
-  setToken(data.token)
-  setStoredAddress(data.address)
-  return data
 }
 
 export async function getMe() {
   return request<{ user: Record<string, unknown> }>('/auth/me')
+}
+
+export async function logout() {
+  return request<{ success: boolean }>('/auth/logout', { method: 'POST' })
 }
 
 // ── Games ────────────────────────────────────────────────────────────

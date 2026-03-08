@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { createDb } from '@checkers/db'
+import { authMiddleware } from './middleware/auth'
 import { authRoutes } from './routes/auth'
 import { gameRoutes } from './routes/games'
 import { userRoutes } from './routes/users'
@@ -35,6 +36,9 @@ app.use('*', async (c, next) => {
   c.set('db' as never, db)
   await next()
 })
+
+// Auth middleware (resolves session, does not block)
+app.use('*', authMiddleware)
 
 // Routes
 app.route('/auth', authRoutes)

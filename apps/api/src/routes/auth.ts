@@ -1,16 +1,58 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { LoginSchema } from '@checkers/shared'
-import { users, sessions } from '@checkers/db'
+import { z } from 'zod'
+import { setCookie } from 'hono/cookie'
+import { users } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq } from 'drizzle-orm'
-import { randomUUID } from 'crypto'
+import {
+  generateChallenge,
+  consumeChallenge,
+  verifySignature,
+  createSessionToken,
+  SESSION_COOKIE,
+  getSessionCookieOptions,
+} from '../services/session.service'
 
 export const authRoutes = new Hono()
 
-authRoutes.post('/login', zValidator('json', LoginSchema), async (c) => {
-  const { address } = c.req.valid('json')
+// ── GET /auth/challenge ─────────────────────────────────────────────
+// Returns a random nonce for the wallet to sign
+
+const ChallengeQuery = z.object({
+  address: z.string().regex(/^axm[a-z0-9]{39}$/, 'Invalid Axiome address'),
+})
+
+authRoutes.get('/challenge', zValidator('query', ChallengeQuery), (c) => {
+  const { address } = c.req.valid('query')
+  const nonce = generateChallenge(address)
+  return c.json({ nonce })
+})
+
+// ── POST /auth/verify ───────────────────────────────────────────────
+// Verify wallet signature, create session, set cookie + return token
+
+const VerifyBody = z.object({
+  address: z.string().regex(/^axm[a-z0-9]{39}$/),
+  signature: z.string().min(1),
+  pubkey: z.string().min(1),
+})
+
+authRoutes.post('/verify', zValidator('json', VerifyBody), async (c) => {
+  const { address, signature, pubkey } = c.req.valid('json')
   const db = c.get('db' as never) as Db
+
+  // Consume the challenge nonce
+  const challenge = consumeChallenge(address)
+  if (!challenge) {
+    return c.json({ error: 'No pending challenge or challenge expired' }, 400)
+  }
+
+  // Verify signature
+  const valid = await verifySignature(address, challenge, signature, pubkey)
+  if (!valid) {
+    return c.json({ error: 'Invalid signature' }, 401)
+  }
 
   // Upsert user
   const [existing] = await db.select().from(users).where(eq(users.address, address)).limit(1)
@@ -18,41 +60,44 @@ authRoutes.post('/login', zValidator('json', LoginSchema), async (c) => {
     await db.insert(users).values({ address })
   }
 
-  // Create session (7 days)
-  const token = randomUUID()
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  // Create session token
+  const { token, expiresAt } = createSessionToken(address)
 
-  const [session] = await db.insert(sessions).values({
-    address,
-    token,
-    expiresAt,
-  }).returning()
+  // Set httpOnly cookie
+  setCookie(c, SESSION_COOKIE, token, getSessionCookieOptions(expiresAt))
 
   return c.json({
-    token: session.token,
+    token,
     address,
     expiresAt: expiresAt.toISOString(),
   })
 })
 
+// ── GET /auth/me ────────────────────────────────────────────────────
+// Returns current user profile (requires auth)
+
 authRoutes.get('/me', async (c) => {
-  const authHeader = c.req.header('authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
+  const address = c.get('address' as never) as string | undefined
+  if (!address) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  const token = authHeader.slice(7)
   const db = c.get('db' as never) as Db
-
-  const [session] = await db.select().from(sessions).where(eq(sessions.token, token)).limit(1)
-  if (!session) {
-    return c.json({ error: 'Invalid session' }, 401)
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.address, session.address)).limit(1)
+  const [user] = await db.select().from(users).where(eq(users.address, address)).limit(1)
   if (!user) {
     return c.json({ error: 'User not found' }, 404)
   }
 
   return c.json({ user })
+})
+
+// ── POST /auth/logout ───────────────────────────────────────────────
+
+authRoutes.post('/logout', (c) => {
+  setCookie(c, SESSION_COOKIE, '', {
+    httpOnly: true,
+    maxAge: 0,
+    path: '/',
+  })
+  return c.json({ success: true })
 })

@@ -1,4 +1,5 @@
 export * from './schemas'
+export * from './chain'
 export * from './constants'
 export * from './elo'
 export type {

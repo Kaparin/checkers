@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { getStoredToken } from '@/lib/auth-headers'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws'
 
@@ -17,7 +18,10 @@ export function useWebSocket(gameId?: string) {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
     try {
-      const ws = new WebSocket(WS_URL)
+      // Pass auth token via query param for WS authentication
+      const token = getStoredToken()
+      const url = token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL
+      const ws = new WebSocket(url)
 
       ws.onopen = () => {
         setConnected(true)

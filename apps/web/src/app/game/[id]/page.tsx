@@ -10,6 +10,7 @@ import { InviteLink } from '@/components/ui/invite-link'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useToast } from '@/components/ui/toast'
 import { getGame, makeMove, resignGame, offerDraw, acceptDraw, getStoredAddress } from '@/lib/api'
+import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import type { GameState, PieceColor } from '@checkers/shared'
 
@@ -32,7 +33,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [showResignConfirm, setShowResignConfirm] = useState(false)
 
   const { subscribe, connected } = useWebSocket(gameId)
-  const address = getStoredAddress()
+  const { address } = useWallet()
 
   // Load game
   useEffect(() => {

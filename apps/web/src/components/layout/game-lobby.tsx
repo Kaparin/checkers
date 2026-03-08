@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { CreateGameModal } from '@/components/ui/create-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
-import { listGames, createGame, joinGame, getStoredAddress, type GameListItem } from '@/lib/api'
+import { listGames, createGame, joinGame, type GameListItem } from '@/lib/api'
+import { useWallet } from '@/contexts/wallet-context'
 
 interface GameLobbyProps {
   onJoinGame: (gameId: string) => void
@@ -19,7 +20,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   const [openGames, setOpenGames] = useState<GameListItem[]>([])
   const [activeGames, setActiveGames] = useState<GameListItem[]>([])
   const [loading, setLoading] = useState(true)
-  const address = getStoredAddress()
+  const { address, isConnected, openConnectModal } = useWallet()
   const { subscribe } = useWebSocket()
 
   useEffect(() => {
@@ -127,7 +128,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
         </button>
 
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => isConnected ? setShowCreate(true) : openConnectModal()}
           className="p-6 bg-bg-card border border-border rounded-2xl hover:border-border-hover hover:shadow-md transition-all text-left group"
         >
           <div className="flex items-center gap-3 mb-3">
@@ -136,10 +137,12 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                 <path strokeLinecap="round" d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <h3 className="font-semibold text-text group-hover:text-accent transition-colors">Create Game</h3>
+            <h3 className="font-semibold text-text group-hover:text-accent transition-colors">
+              {isConnected ? 'Create Game' : 'Connect Wallet'}
+            </h3>
           </div>
           <p className="text-sm text-text-secondary">
-            Set wager amount and wait for an opponent.
+            {isConnected ? 'Set wager amount and wait for an opponent.' : 'Connect your wallet to play online.'}
           </p>
         </button>
       </div>
@@ -190,11 +193,11 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleJoin(game.id)}
+                  onClick={() => isConnected ? handleJoin(game.id) : openConnectModal()}
                   disabled={game.blackPlayer === address}
                   className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-50"
                 >
-                  {game.blackPlayer === address ? 'Your game' : 'Join'}
+                  {game.blackPlayer === address ? 'Your game' : isConnected ? 'Join' : 'Connect'}
                 </button>
               </div>
             ))}

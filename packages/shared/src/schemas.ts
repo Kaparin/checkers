@@ -2,10 +2,14 @@ import { z } from 'zod'
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
-export const LoginSchema = z.object({
+export const ChallengeQuerySchema = z.object({
   address: z.string().regex(/^axm[a-z0-9]{39}$/, 'Invalid Axiome address'),
-  signature: z.string(),
-  pubkey: z.string(),
+})
+
+export const VerifyAuthSchema = z.object({
+  address: z.string().regex(/^axm[a-z0-9]{39}$/),
+  signature: z.string().min(1),
+  pubkey: z.string().min(1),
 })
 
 // ── Game ─────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { createInitialGameState, isValidMove, applyMove, serializeGameState, des
 import { games, gameMoves, users } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
-import { authMiddleware } from '../middleware/auth'
+import { requireAuth } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
 import type { GameState, GameVariant } from '@checkers/shared'
@@ -62,7 +62,7 @@ gameRoutes.get('/:id', async (c) => {
 })
 
 // Create game (auth required)
-gameRoutes.post('/', authMiddleware, zValidator('json', CreateGameSchema), async (c) => {
+gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c) => {
   const { wager, timePerMove, variant } = c.req.valid('json')
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
@@ -85,7 +85,7 @@ gameRoutes.post('/', authMiddleware, zValidator('json', CreateGameSchema), async
 })
 
 // Join game (auth required)
-gameRoutes.post('/:id/join', authMiddleware, async (c) => {
+gameRoutes.post('/:id/join', requireAuth, async (c) => {
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
   const gameId = c.req.param('id') as string
@@ -117,7 +117,7 @@ gameRoutes.post('/:id/join', authMiddleware, async (c) => {
 })
 
 // Make a move (auth required)
-gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema), async (c) => {
+gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), async (c) => {
   const { from, to } = c.req.valid('json')
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
@@ -218,7 +218,7 @@ gameRoutes.post('/:id/move', authMiddleware, zValidator('json', MakeMoveSchema),
 })
 
 // Cancel game (auth required, only before opponent joins)
-gameRoutes.post('/:id/cancel', authMiddleware, async (c) => {
+gameRoutes.post('/:id/cancel', requireAuth, async (c) => {
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
   const gameId = c.req.param('id') as string
@@ -239,7 +239,7 @@ gameRoutes.post('/:id/cancel', authMiddleware, async (c) => {
 })
 
 // Resign (auth required, during active game)
-gameRoutes.post('/:id/resign', authMiddleware, async (c) => {
+gameRoutes.post('/:id/resign', requireAuth, async (c) => {
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
   const gameId = c.req.param('id') as string
@@ -282,7 +282,7 @@ gameRoutes.post('/:id/resign', authMiddleware, async (c) => {
 })
 
 // Draw offer
-gameRoutes.post('/:id/draw-offer', authMiddleware, async (c) => {
+gameRoutes.post('/:id/draw-offer', requireAuth, async (c) => {
   const address = c.get('address' as never) as string
   const gameId = c.req.param('id') as string
 
@@ -291,7 +291,7 @@ gameRoutes.post('/:id/draw-offer', authMiddleware, async (c) => {
 })
 
 // Accept draw
-gameRoutes.post('/:id/draw-accept', authMiddleware, async (c) => {
+gameRoutes.post('/:id/draw-accept', requireAuth, async (c) => {
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
   const gameId = c.req.param('id') as string

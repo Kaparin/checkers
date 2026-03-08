@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'http'
 import type { Db } from '@checkers/db'
 import { WsMessageSchema } from '@checkers/shared'
+import { verifySessionToken } from '../services/session.service'
 
 interface ConnectedClient {
   ws: WebSocket
@@ -16,8 +17,19 @@ const lobbyClients = new Set<WebSocket>()
 export function setupWebSocket(server: Server, db: Db) {
   const wss = new WebSocketServer({ server, path: '/ws' })
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
     const client: ConnectedClient = { ws }
+
+    // Authenticate via ?token= query param
+    const url = new URL(req.url || '/', `http://${req.headers.host}`)
+    const token = url.searchParams.get('token')
+    if (token) {
+      const session = verifySessionToken(token)
+      if (session) {
+        client.address = session.address
+      }
+    }
+
     clients.set(ws, client)
     lobbyClients.add(ws)
 
