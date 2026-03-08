@@ -35,12 +35,27 @@ importers:
       '@cosmjs/encoding':
         specifier: ^0.38.1
         version: 0.38.1
+      '@cosmjs/math':
+        specifier: ^0.38.1
+        version: 0.38.1
+      '@cosmjs/proto-signing':
+        specifier: ^0.38.1
+        version: 0.38.1
+      '@cosmjs/stargate':
+        specifier: ^0.38.1
+        version: 0.38.1
+      '@cosmjs/tendermint-rpc':
+        specifier: ^0.38.1
+        version: 0.38.1
       '@hono/node-server':
         specifier: ^1.13.8
         version: 1.19.11(hono@4.12.5)
       '@hono/zod-validator':
         specifier: ^0.4.2
         version: 0.4.3(hono@4.12.5)(zod@3.25.76)
+      cosmjs-types:
+        specifier: ^0.11.0
+        version: 0.11.0
       drizzle-orm:
         specifier: ^0.38.3
         version: 0.38.4(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(@types/react@19.2.14)(react@19.2.4)

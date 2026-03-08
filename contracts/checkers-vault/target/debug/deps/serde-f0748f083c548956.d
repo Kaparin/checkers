@@ -1,0 +1,14 @@
+E:\Work\checkers\contracts\checkers-vault\target\debug\deps\serde-f0748f083c548956.d: C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs E:\Work\checkers\contracts\checkers-vault\target\debug\build\serde-6468da61414567ba\out/private.rs
+
+E:\Work\checkers\contracts\checkers-vault\target\debug\deps\libserde-f0748f083c548956.rlib: C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs E:\Work\checkers\contracts\checkers-vault\target\debug\build\serde-6468da61414567ba\out/private.rs
+
+E:\Work\checkers\contracts\checkers-vault\target\debug\deps\libserde-f0748f083c548956.rmeta: C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs E:\Work\checkers\contracts\checkers-vault\target\debug\build\serde-6468da61414567ba\out/private.rs
+
+C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs:
+C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs:
+C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs:
+C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs:
+C:\Users\Aleksander\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs:
+E:\Work\checkers\contracts\checkers-vault\target\debug\build\serde-6468da61414567ba\out/private.rs:
+
+# env-dep:OUT_DIR=E:\\Work\\checkers\\contracts\\checkers-vault\\target\\debug\\build\\serde-6468da61414567ba\\out

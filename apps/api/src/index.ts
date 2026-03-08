@@ -10,6 +10,8 @@ import { gameRoutes } from './routes/games'
 import { userRoutes } from './routes/users'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
+import { relayer } from './services/relayer'
+import { indexer } from './services/indexer'
 
 const app = new Hono()
 
@@ -57,6 +59,25 @@ setupWebSocket(server as unknown as Server, db)
 
 // Timeout checker (every 5s)
 startTimeoutChecker(db)
+
+// Initialize blockchain services (non-blocking)
+;(async () => {
+  try {
+    await relayer.init()
+    if (relayer.isReady) {
+      console.log('[checkers-api] Relayer ready')
+    }
+  } catch (err) {
+    console.error('[checkers-api] Relayer init failed:', err)
+  }
+
+  try {
+    await indexer.init(db)
+    indexer.start(3000)
+  } catch (err) {
+    console.error('[checkers-api] Indexer init failed:', err)
+  }
+})()
 
 console.log(`[checkers-api] Running on :${port}`)
 
