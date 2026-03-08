@@ -308,6 +308,21 @@ export class RelayerService {
     return result.transactionHash
   }
 
+  /** Send small AXM to user for gas (faucet for authz grant) */
+  async sendGas(recipientAddress: string, amount: string): Promise<string> {
+    if (!this.client) throw new Error('Relayer not initialized')
+    const sendMsg = {
+      typeUrl: '/cosmos.bank.v1beta1.MsgSend',
+      value: {
+        fromAddress: this.address,
+        toAddress: recipientAddress,
+        amount: [{ denom: 'uaxm', amount }],
+      },
+    }
+    const result = await this.submitTx([sendMsg], 'gas faucet')
+    return result.transactionHash
+  }
+
   /** Get relayer address */
   getAddress(): string {
     return this.address

@@ -3,12 +3,12 @@
  *
  * - Query AXM balance
  * - Check/grant authz to relayer
- * - Sign and broadcast transactions via user's wallet
+ * - Fund gas for authz grant
  *
- * All chain queries go through the API proxy to avoid CORS issues.
+ * All chain queries go through the API to avoid CORS issues.
  */
 
-import type { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing'
+import { getAuthHeaders } from './auth-headers'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -32,30 +32,46 @@ export async function getChainConfig(): Promise<ChainConfig> {
   return cachedConfig
 }
 
-// ── Balance ─────────────────────────────────────────────────────────
-
-export async function getBalance(address: string): Promise<{ amount: string; denom: string }> {
-  const res = await fetch(`${API_URL}/chain/balance/${address}`)
-  if (!res.ok) return { amount: '0', denom: 'uaxm' }
-  return res.json()
+export function clearConfigCache() {
+  cachedConfig = null
 }
 
-// ── Authz Check ─────────────────────────────────────────────────────
+// ── Balance ─────────────────────────────────────────────────────────
+
+export async function getBalance(address: string): Promise<string> {
+  const res = await fetch(`${API_URL}/chain/balance/${address}`)
+  if (!res.ok) return '0'
+  const data = await res.json()
+  return data.amount || '0'
+}
+
+// ── Authz ───────────────────────────────────────────────────────────
 
 export async function checkAuthzGrant(granterAddress: string): Promise<boolean> {
-  const config = await getChainConfig()
-  if (!config.relayerAddress) return false
-
   const res = await fetch(`${API_URL}/chain/authz/${granterAddress}`)
   if (!res.ok) return false
   const data = await res.json()
   return data.hasGrant === true
 }
 
-/**
- * Format AXM amount for display.
- * 1_000_000 uaxm = 1 AXM
- */
+// ── Gas Faucet ──────────────────────────────────────────────────────
+
+export async function requestGasFunding(): Promise<{ txHash: string }> {
+  const headers = getAuthHeaders()
+  const res = await fetch(`${API_URL}/chain/fund-gas`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || 'Funding failed')
+  }
+  return res.json()
+}
+
+// ── Formatting ──────────────────────────────────────────────────────
+
 export function formatAXM(microAmount: string | number): string {
   const n = typeof microAmount === 'string' ? Number(microAmount) : microAmount
   if (n === 0) return '0'
