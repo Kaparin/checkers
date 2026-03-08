@@ -14,6 +14,9 @@ export const AXIOME_REST = 'http://49.13.3.227:1317'
 
 export const AXIOME_GAS_PRICE = '0.025uaxm'
 
+// Deployed contract addresses
+export const CHECKERS_CONTRACT = 'axm1dy3rn9qhjak7tg9dfp3r0z0hutwng2rysq0mxf43twa983yfgxksfa9ywc'
+
 export function getAxiomeChainConfig() {
   return {
     chainId: AXIOME_CHAIN_ID,

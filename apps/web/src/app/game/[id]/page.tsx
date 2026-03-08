@@ -4,15 +4,96 @@ import { use, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { GameOverModal } from '@/components/ui/game-over-modal'
-import { MoveTimer } from '@/components/ui/move-timer'
 import { MoveHistory } from '@/components/ui/move-history'
 import { InviteLink } from '@/components/ui/invite-link'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw, getStoredAddress } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import type { GameState, PieceColor } from '@checkers/shared'
+
+function PlayerCard({
+  address,
+  pieceColor,
+  isCurrentTurn,
+  deadline,
+  timePerMove,
+  isTop,
+}: {
+  address: string | null
+  pieceColor: PieceColor
+  isCurrentTurn: boolean
+  deadline: string | null
+  timePerMove: number
+  isTop: boolean
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(timePerMove)
+
+  useEffect(() => {
+    if (!deadline || !isCurrentTurn) {
+      setSecondsLeft(timePerMove)
+      return
+    }
+    const target = new Date(deadline).getTime()
+    function tick() {
+      const diff = Math.max(0, Math.ceil((target - Date.now()) / 1000))
+      setSecondsLeft(diff)
+    }
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [deadline, isCurrentTurn, timePerMove])
+
+  const minutes = Math.floor(secondsLeft / 60)
+  const seconds = secondsLeft % 60
+  const isLow = isCurrentTurn && secondsLeft <= 10
+  const pct = Math.max(0, (secondsLeft / timePerMove) * 100)
+
+  const short = address
+    ? `${address.slice(0, 8)}...${address.slice(-4)}`
+    : 'Waiting...'
+
+  return (
+    <div className={`flex items-center gap-3 w-full max-w-md ${isTop ? '' : ''}`}>
+      {/* Avatar */}
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
+        pieceColor === 'black'
+          ? 'bg-piece-black'
+          : 'bg-piece-white border border-border'
+      }`}>
+        <span className={`text-sm font-bold ${
+          pieceColor === 'black' ? 'text-white' : 'text-piece-black'
+        }`}>
+          {address ? address[3].toUpperCase() : '?'}
+        </span>
+      </div>
+
+      {/* Name + timer */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm font-medium text-text truncate">
+            {isTop ? short : `You (${short})`}
+          </span>
+          <span className={`text-sm font-mono font-semibold tabular-nums ${
+            isLow ? 'text-danger animate-pulse' : isCurrentTurn ? 'text-text' : 'text-text-muted'
+          }`}>
+            {minutes}:{seconds.toString().padStart(2, '0')}
+          </span>
+        </div>
+        {/* Timer bar */}
+        <div className="h-1 bg-bg-subtle rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${
+              isLow ? 'bg-danger' : isCurrentTurn ? 'bg-accent' : 'bg-text-muted/30'
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: gameId } = use(params)
@@ -31,6 +112,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [drawOffered, setDrawOffered] = useState(false)
   const [drawPending, setDrawPending] = useState(false)
   const [showResignConfirm, setShowResignConfirm] = useState(false)
+  const [showMoves, setShowMoves] = useState(false)
+  const [variant, setVariant] = useState<string>('russian')
 
   const { subscribe, connected } = useWebSocket(gameId)
   const { address } = useWallet()
@@ -43,6 +126,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         setWager(game.wager)
         setTimePerMove(game.timePerMove)
         setTurnDeadline(game.currentTurnDeadline)
+        setVariant(game.variant || 'russian')
 
         if (address === game.blackPlayer) {
           setPlayerColor('black')
@@ -157,7 +241,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="fixed inset-0 bg-bg flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -165,7 +249,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   if (error) {
     return (
-      <div className="text-center py-20 space-y-4">
+      <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center gap-4">
         <p className="text-danger">{error}</p>
         <button onClick={() => router.push('/')} className="text-sm text-accent hover:underline">
           Back to lobby
@@ -181,122 +265,169 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const isMyTurn = isPlayer && gameState.currentTurn === playerColor
   const isPlaying = gameState.status === 'playing'
   const isWaiting = gameState.status === 'waiting'
+  const opponentColor: PieceColor = playerColor === 'white' ? 'black' : 'white'
+  const isOpponentTurn = isPlaying && gameState.currentTurn === opponentColor
 
   return (
-    <div className="flex flex-col items-center gap-5">
-      {/* Header */}
-      <div className="flex items-center justify-between w-full max-w-xl">
+    <div className="fixed inset-0 bg-bg flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg-card shrink-0">
         <button
           onClick={() => router.push('/')}
           className="text-sm text-text-secondary hover:text-text transition-colors"
         >
-          &larr; Lobby
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        <div className="flex items-center gap-3">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            gameState.variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-board-dark/10 text-board-dark'
+
+        <div className="flex items-center gap-2.5">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase ${
+            variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-board-dark/10 text-board-dark'
           }`}>
-            {gameState.variant === 'russian' ? 'RUS' : 'USA'}
+            {variant === 'russian' ? 'RUS' : 'USA'}
           </span>
+          <span className="text-xs font-medium text-text-secondary">
+            {(Number(wager) / 1_000_000).toFixed(0)} AXM
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Move history toggle */}
+          {gameState.moveHistory.length > 0 && (
+            <button
+              onClick={() => setShowMoves(!showMoves)}
+              className="text-text-muted hover:text-text transition-colors"
+              title="Moves"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </button>
+          )}
           <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
-          <span className="text-sm font-medium text-text-secondary">
-            {(Number(wager) / 1_000_000).toFixed(0)} COIN
-          </span>
         </div>
       </div>
 
-      {/* Spectator badge */}
-      {isSpectator && isPlaying && (
-        <div className="px-3 py-1.5 bg-bg-subtle border border-border rounded-full text-xs font-medium text-text-secondary">
-          Spectating
-        </div>
-      )}
+      {/* Game content — flex-1 fills remaining space */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 py-3 overflow-hidden relative">
 
-      {/* Waiting state */}
-      {isWaiting && (
-        <div className="w-full max-w-md space-y-3">
-          <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
-            <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-text-secondary">Waiting for opponent to join...</p>
+        {/* Spectator badge */}
+        {isSpectator && isPlaying && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-bg-subtle border border-border rounded-full text-xs font-medium text-text-secondary z-10">
+            Spectating
           </div>
-          <InviteLink gameId={gameId} />
-        </div>
-      )}
+        )}
 
-      {/* Opponent info */}
-      {opponent && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-bg-card border border-border rounded-xl">
-          <div className={`w-6 h-6 rounded-full ${playerColor === 'white' ? 'bg-piece-black' : 'bg-piece-white border border-border'}`} />
-          <span className="text-sm font-medium">
-            {opponent.slice(0, 8)}...{opponent.slice(-4)}
-          </span>
-        </div>
-      )}
+        {/* Waiting state */}
+        {isWaiting && (
+          <div className="w-full max-w-md space-y-3 mb-3">
+            <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
+              <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-text-secondary">Waiting for opponent...</p>
+            </div>
+            <InviteLink gameId={gameId} />
+          </div>
+        )}
 
-      {/* Timer */}
-      {isPlaying && turnDeadline && (
-        <MoveTimer deadline={turnDeadline} isMyTurn={isMyTurn} timePerMove={timePerMove} />
-      )}
+        {/* Opponent card */}
+        {!isWaiting && (
+          <PlayerCard
+            address={opponent}
+            pieceColor={opponentColor}
+            isCurrentTurn={isOpponentTurn}
+            deadline={turnDeadline}
+            timePerMove={timePerMove}
+            isTop
+          />
+        )}
 
-      {/* Draw offer banner */}
-      {drawPending && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-warning/10 border border-warning/30 rounded-xl">
-          <span className="text-sm font-medium text-warning">Opponent offers a draw</span>
-          <button onClick={handleDrawAccept} className="px-3 py-1 bg-success text-white text-xs font-medium rounded-lg">Accept</button>
-          <button onClick={() => setDrawPending(false)} className="px-3 py-1 bg-bg-subtle text-text-secondary text-xs font-medium rounded-lg">Decline</button>
-        </div>
-      )}
+        {/* VS divider */}
+        {isPlaying && (
+          <div className="flex items-center gap-3 w-full max-w-md">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[10px] font-bold text-text-muted tracking-widest">VS</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+        )}
 
-      {/* Board + Move History */}
-      <div className="flex flex-col md:flex-row gap-4 items-start">
+        {/* Draw offer banner */}
+        {drawPending && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg w-full max-w-md">
+            <span className="text-xs font-medium text-warning flex-1">Draw offer</span>
+            <button onClick={handleDrawAccept} className="px-2.5 py-1 bg-success text-white text-xs font-medium rounded-md">Accept</button>
+            <button onClick={() => setDrawPending(false)} className="px-2.5 py-1 bg-bg-subtle text-text-secondary text-xs font-medium rounded-md">Decline</button>
+          </div>
+        )}
+
+        {/* Board */}
         <CheckersBoard
           gameId={gameId}
           playerColor={playerColor}
           externalState={gameState}
           onMove={handleMove}
         />
-        <div className="w-full md:w-48 shrink-0">
-          <MoveHistory moves={gameState.moveHistory} />
-        </div>
-      </div>
 
-      {/* My info */}
-      <div className="flex items-center gap-3 px-4 py-2 bg-bg-card border border-border rounded-xl">
-        <div className={`w-6 h-6 rounded-full ${playerColor === 'white' ? 'bg-piece-white border border-border' : 'bg-piece-black'}`} />
-        <span className="text-sm font-medium">
-          You {address ? `(${address.slice(0, 8)}...)` : ''}
-        </span>
-        {isMyTurn && isPlaying && (
-          <span className="text-xs px-2 py-0.5 bg-success/10 text-success rounded-full font-medium">Your turn</span>
+        {/* Player card */}
+        {!isWaiting && (
+          <PlayerCard
+            address={address}
+            pieceColor={playerColor}
+            isCurrentTurn={isMyTurn && isPlaying}
+            deadline={turnDeadline}
+            timePerMove={timePerMove}
+            isTop={false}
+          />
+        )}
+
+        {/* Turn indicator */}
+        {isPlaying && isPlayer && (
+          <div className={`text-xs font-medium px-3 py-1 rounded-full ${
+            isMyTurn
+              ? 'bg-success/10 text-success'
+              : 'bg-bg-subtle text-text-muted'
+          }`}>
+            {isMyTurn ? 'Your turn' : "Opponent's turn"}
+          </div>
+        )}
+
+        {/* Game controls */}
+        {isPlaying && isPlayer && (
+          <div className="flex gap-2">
+            <button
+              onClick={handleDrawOffer}
+              disabled={drawOffered}
+              className="px-3 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg hover:border-border-hover transition-colors disabled:opacity-50"
+            >
+              {drawOffered ? 'Offered' : 'Draw'}
+            </button>
+            {showResignConfirm ? (
+              <div className="flex gap-1.5 items-center">
+                <span className="text-[10px] text-danger">Sure?</span>
+                <button onClick={handleResign} className="px-2.5 py-1.5 text-xs font-medium text-white bg-danger rounded-lg">Yes</button>
+                <button onClick={() => setShowResignConfirm(false)} className="px-2.5 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg">No</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowResignConfirm(true)}
+                className="px-3 py-1.5 text-xs font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger/5 transition-colors"
+              >
+                Resign
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Move history slide-over */}
+        {showMoves && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMoves(false)} />
+            <div className="absolute right-2 top-2 z-50 w-52 shadow-xl rounded-xl overflow-hidden">
+              <MoveHistory moves={gameState.moveHistory} />
+            </div>
+          </>
         )}
       </div>
-
-      {/* Game controls (players only) */}
-      {isPlaying && isPlayer && (
-        <div className="flex gap-3">
-          <button
-            onClick={handleDrawOffer}
-            disabled={drawOffered}
-            className="px-4 py-2 text-sm font-medium text-text-secondary border border-border rounded-xl hover:border-border-hover transition-colors disabled:opacity-50"
-          >
-            {drawOffered ? 'Draw offered' : 'Offer Draw'}
-          </button>
-          {showResignConfirm ? (
-            <div className="flex gap-2 items-center">
-              <span className="text-xs text-danger">Sure?</span>
-              <button onClick={handleResign} className="px-3 py-2 text-sm font-medium text-white bg-danger rounded-xl">Yes, resign</button>
-              <button onClick={() => setShowResignConfirm(false)} className="px-3 py-2 text-sm font-medium text-text-secondary border border-border rounded-xl">No</button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowResignConfirm(true)}
-              className="px-4 py-2 text-sm font-medium text-danger border border-danger/30 rounded-xl hover:bg-danger/5 transition-colors"
-            >
-              Resign
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Game over modal */}
       {showGameOver && (

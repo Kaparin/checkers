@@ -10,7 +10,7 @@ import { SigningStargateClient, defaultRegistryTypes, GasPrice } from '@cosmjs/s
 import { MsgExec } from 'cosmjs-types/cosmos/authz/v1beta1/tx'
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx'
 import { toUtf8 } from '@cosmjs/encoding'
-import { coin } from '@cosmjs/stargate'
+import { stringToPath } from '@cosmjs/crypto'
 import { AXIOME_RPC, AXIOME_PREFIX, AXIOME_GAS_PRICE, AXIOME_HD_PATH } from '@checkers/shared/chain'
 import { SequenceManager } from './sequence-manager'
 
@@ -37,9 +37,10 @@ export class RelayerService {
       return
     }
 
-    // Create wallet
+    // Create wallet with Axiome HD path (coin type 546)
     this.wallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic, {
       prefix: AXIOME_PREFIX,
+      hdPaths: [stringToPath(AXIOME_HD_PATH)],
     })
     const [account] = await this.wallet.getAccounts()
     this.address = account.address

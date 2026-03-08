@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { playMoveSound, playCaptureSound, playKingSound } from '@/lib/sounds'
-import { useBoardTheme, BOARD_THEMES, type BoardTheme } from '@/hooks/use-board-theme'
+import { useBoardTheme } from '@/hooks/use-board-theme'
 import {
   createInitialGameState,
   getValidMovesForPiece,
-  getValidMoves,
   applyMove,
   BOARD_SIZE,
   type GameState,
@@ -35,7 +34,7 @@ export function CheckersBoard({
   externalState,
   onMove,
 }: CheckersBoardProps) {
-  const { theme, setTheme, themes } = useBoardTheme()
+  const { theme } = useBoardTheme()
   const [internalState, setInternalState] = useState<GameState>(() => createInitialGameState(variant))
   const [selectedPiece, setSelectedPiece] = useState<Position | null>(null)
   const [validMoves, setValidMoves] = useState<Move[]>([])
@@ -243,26 +242,12 @@ export function CheckersBoard({
       {/* Captured pieces (bottom = my captured) */}
       <CapturedPieces color="white" count={whiteCaptured} />
 
-      {/* Move counter + theme selector */}
-      <div className="flex items-center gap-4">
+      {/* Move counter */}
+      {localMode && (
         <span className="text-xs text-text-muted">
-          Move {gameState.moveCount} &middot; {gameState.variant === 'russian' ? 'Russian' : 'American'}
-          {localMode && ' (local)'}
+          Move {gameState.moveCount} &middot; {gameState.variant === 'russian' ? 'Russian' : 'American'} (local)
         </span>
-        <div className="flex gap-1">
-          {themes.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTheme(t.id)}
-              title={t.name}
-              className={`w-5 h-5 rounded-full border-2 transition-all ${
-                t.id === theme.id ? 'border-accent scale-110' : 'border-transparent'
-              }`}
-              style={{ background: `linear-gradient(135deg, ${t.light} 50%, ${t.dark} 50%)` }}
-            />
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
