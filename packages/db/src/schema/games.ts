@@ -17,6 +17,7 @@ export const games = pgTable('games', {
   gameState: jsonb('game_state').notNull(), // serialized GameState
   moveCount: integer('move_count').notNull().default(0),
   currentTurnDeadline: timestamp('current_turn_deadline', { withTimezone: true }),
+  onChainGameId: integer('on_chain_game_id'),  // contract's game_id (u64 counter)
   txHashCreate: text('tx_hash_create'),     // wager lock tx
   txHashJoin: text('tx_hash_join'),         // opponent wager lock tx
   txHashResolve: text('tx_hash_resolve'),   // payout tx

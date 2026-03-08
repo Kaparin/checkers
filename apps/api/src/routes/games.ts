@@ -8,9 +8,21 @@ import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
+import { AXIOME_DENOM } from '@checkers/shared/chain'
+import { relayer } from '../services/relayer'
 import type { GameState, GameVariant } from '@checkers/shared'
 
 export const gameRoutes = new Hono()
+
+/**
+ * Fire relayer call in background — never blocks the API response.
+ * Errors are logged but don't affect the game flow.
+ */
+function fireAndForget(label: string, fn: () => Promise<unknown>) {
+  fn().catch(err => {
+    console.error(`[relay:${label}] Failed:`, err?.message || err)
+  })
+}
 
 // List games (public)
 gameRoutes.get('/', zValidator('query', GameListSchema), async (c) => {
@@ -81,6 +93,20 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
 
   broadcastToLobby({ type: WS_EVENTS.GAME_CREATED, game: { id: game.id, wager, variant, blackPlayer: address, timePerMove } })
 
+  // Background: lock wager on-chain
+  if (relayer.isReady && wager !== '0') {
+    fireAndForget(`create:${game.id}`, async () => {
+      const { txHash, onChainGameId } = await relayer.relayCreateGame(
+        address, variant, timePerMove, wager, AXIOME_DENOM,
+      )
+      console.log(`[relay:create] Game ${game.id} → on-chain #${onChainGameId} tx=${txHash.slice(0, 12)}...`)
+      await db.update(games).set({
+        onChainGameId,
+        txHashCreate: txHash,
+      }).where(eq(games.id, game.id))
+    })
+  }
+
   return c.json({ game }, 201)
 })
 
@@ -112,6 +138,17 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
 
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_JOINED, game: updated })
   broadcastToLobby({ type: WS_EVENTS.GAME_JOINED, gameId })
+
+  // Background: lock opponent wager on-chain
+  if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
+    fireAndForget(`join:${gameId}`, async () => {
+      const txHash = await relayer.relayJoinGame(
+        address, game.onChainGameId!, game.wager, AXIOME_DENOM,
+      )
+      console.log(`[relay:join] Game ${gameId} on-chain #${game.onChainGameId} tx=${txHash.slice(0, 12)}...`)
+      await db.update(games).set({ txHashJoin: txHash }).where(eq(games.id, gameId))
+    })
+  }
 
   return c.json({ game: updated })
 })
@@ -204,6 +241,26 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
         elo: eloChange.newRatingLoser,
       }).where(eq(users.address, loser))
     }
+
+    // Background: resolve on-chain (distribute winnings)
+    if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
+      fireAndForget(`resolve:${gameId}`, async () => {
+        const txHash = await relayer.relayResolveGame(game.onChainGameId!, winner)
+        console.log(`[relay:resolve] Game ${gameId} winner=${winner.slice(0, 12)}... tx=${txHash.slice(0, 12)}...`)
+        await db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId))
+      })
+    }
+  }
+
+  // Handle draw (no pieces left scenario — rare but possible)
+  if (isFinished && !winner && newState.status === 'draw') {
+    if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
+      fireAndForget(`draw:${gameId}`, async () => {
+        const txHash = await relayer.relayResolveDraw(game.onChainGameId!)
+        console.log(`[relay:draw] Game ${gameId} tx=${txHash.slice(0, 12)}...`)
+        await db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId))
+      })
+    }
   }
 
   // Broadcast
@@ -234,6 +291,14 @@ gameRoutes.post('/:id/cancel', requireAuth, async (c) => {
   }).where(eq(games.id, gameId)).returning()
 
   broadcastToLobby({ type: WS_EVENTS.GAME_CANCELED, gameId })
+
+  // Background: refund wager on-chain
+  if (relayer.isReady && game.onChainGameId) {
+    fireAndForget(`cancel:${gameId}`, async () => {
+      const txHash = await relayer.relayCancelGame(address, game.onChainGameId!)
+      console.log(`[relay:cancel] Game ${gameId} tx=${txHash.slice(0, 12)}...`)
+    })
+  }
 
   return c.json({ game: updated })
 })
@@ -274,6 +339,15 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
       await db.update(users).set({
         gamesPlayed: sql`games_played + 1`, gamesLost: sql`games_lost + 1`, elo: elo.newRatingLoser,
       }).where(eq(users.address, address))
+    }
+
+    // Background: resolve on-chain
+    if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
+      fireAndForget(`resign:${gameId}`, async () => {
+        const txHash = await relayer.relayResolveGame(game.onChainGameId!, winner)
+        console.log(`[relay:resign] Game ${gameId} winner=${winner.slice(0, 12)}... tx=${txHash.slice(0, 12)}...`)
+        await db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId))
+      })
     }
   }
 
@@ -322,6 +396,15 @@ gameRoutes.post('/:id/draw-accept', requireAuth, async (c) => {
         gamesPlayed: sql`games_played + 1`, gamesDraw: sql`games_draw + 1`, elo: elo.newRatingB,
       }).where(eq(users.address, game.whitePlayer))
     }
+  }
+
+  // Background: refund both on-chain
+  if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
+    fireAndForget(`draw-accept:${gameId}`, async () => {
+      const txHash = await relayer.relayResolveDraw(game.onChainGameId!)
+      console.log(`[relay:draw] Game ${gameId} tx=${txHash.slice(0, 12)}...`)
+      await db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId))
+    })
   }
 
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, reason: 'draw' })

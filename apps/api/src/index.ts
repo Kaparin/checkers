@@ -8,6 +8,7 @@ import { authMiddleware } from './middleware/auth'
 import { authRoutes } from './routes/auth'
 import { gameRoutes } from './routes/games'
 import { userRoutes } from './routes/users'
+import { chainRoutes } from './routes/chain'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
@@ -46,9 +47,19 @@ app.use('*', authMiddleware)
 app.route('/auth', authRoutes)
 app.route('/games', gameRoutes)
 app.route('/users', userRoutes)
+app.route('/chain', chainRoutes)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }))
+
+// Chain config (public — frontend uses this for authz setup)
+app.get('/config', (c) => c.json({
+  relayerAddress: relayer.getAddress() || null,
+  contractAddress: process.env.CHECKERS_CONTRACT || null,
+  chainId: 'axiome-1',
+  denom: 'uaxm',
+  relayerReady: relayer.isReady,
+}))
 
 // Start server
 const port = Number(process.env.PORT) || 3001

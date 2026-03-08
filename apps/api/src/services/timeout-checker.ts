@@ -4,6 +4,7 @@ import type { Db } from '@checkers/db'
 import { broadcastToGame } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
 import { sql } from 'drizzle-orm'
+import { relayer } from './relayer'
 
 /**
  * Periodically checks for games where the current turn deadline has passed.
@@ -61,6 +62,16 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
         })
 
         console.log(`[timeout] Game ${game.id}: ${loser} timed out, ${winner} wins`)
+
+        // Background: resolve on-chain
+        if (relayer.isReady && game.onChainGameId && winner && game.wager !== '0') {
+          relayer.relayResolveGame(game.onChainGameId, winner).then(txHash => {
+            console.log(`[relay:timeout] Game ${game.id} tx=${txHash.slice(0, 12)}...`)
+            db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, game.id))
+          }).catch(err => {
+            console.error(`[relay:timeout] Game ${game.id} failed:`, err?.message || err)
+          })
+        }
       }
     } catch (err) {
       console.error('[timeout-checker] Error:', err)

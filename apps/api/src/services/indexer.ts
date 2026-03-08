@@ -151,6 +151,36 @@ export class IndexerService {
 
   // ── Event handling ──────────────────────────────────────────────
 
+  /**
+   * Find the DB game record by on-chain game_id.
+   * Falls back to matching by creator + waiting status if no mapping exists yet.
+   */
+  private async findGameByOnChainId(onChainGameId: number, creator?: string) {
+    const db = this.db!
+
+    // Primary: match by on_chain_game_id column
+    const [byId] = await db.select().from(games)
+      .where(eq(games.onChainGameId, onChainGameId)).limit(1)
+    if (byId) return byId
+
+    // Fallback for create_game: match by creator + waiting status (if mapping not stored yet)
+    if (creator) {
+      const [byCreator] = await db.select().from(games)
+        .where(and(
+          eq(games.blackPlayer, creator),
+          eq(games.status, 'waiting'),
+        ))
+        .limit(1)
+      if (byCreator) {
+        // Store the mapping
+        await db.update(games).set({ onChainGameId }).where(eq(games.id, byCreator.id))
+        return byCreator
+      }
+    }
+
+    return null
+  }
+
   private async handleEvent(event: WasmEvent) {
     // Deduplication
     const key = `${event.txHash}:${event.action}:${event.attrs.game_id || ''}`
@@ -164,115 +194,107 @@ export class IndexerService {
     }
 
     const db = this.db!
-    const gameId = event.attrs.game_id
+    const onChainGameId = parseInt(event.attrs.game_id || '0', 10)
+    if (!onChainGameId) return
 
-    console.log(`[indexer] Event: ${event.action} game=${gameId} tx=${event.txHash.slice(0, 12)}...`)
+    console.log(`[indexer] Event: ${event.action} chain_game=${onChainGameId} tx=${event.txHash.slice(0, 12)}...`)
 
     try {
       switch (event.action) {
         case 'create_game': {
-          // Game created on chain — update tx hash
-          // The game should already exist in DB (created via API first)
-          // We match by looking for waiting games from this creator
           const creator = event.attrs.creator
-          if (creator && gameId) {
+          const game = await this.findGameByOnChainId(onChainGameId, creator)
+          if (game) {
             await db.update(games).set({
+              onChainGameId,
               txHashCreate: event.txHash,
-            }).where(eq(games.id, gameId))
+            }).where(eq(games.id, game.id))
+            console.log(`[indexer] Mapped chain game #${onChainGameId} → DB ${game.id}`)
           }
           break
         }
 
         case 'join_game': {
-          // Game joined on chain
-          if (gameId) {
+          const game = await this.findGameByOnChainId(onChainGameId)
+          if (game) {
             await db.update(games).set({
               txHashJoin: event.txHash,
-            }).where(eq(games.id, gameId))
+            }).where(eq(games.id, game.id))
           }
           break
         }
 
         case 'resolve_game': {
-          // Game resolved with winner — terminal state protection
           const winner = event.attrs.winner
-          if (gameId && winner) {
-            // Only update if not already in terminal state
-            const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
-            if (game && !['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
-              const winStatus = winner === game.blackPlayer ? 'black_wins' : 'white_wins'
-              await db.update(games).set({
-                status: winStatus,
-                winner,
-                txHashResolve: event.txHash,
-                finishedAt: new Date(),
-                currentTurnDeadline: null,
-              }).where(eq(games.id, gameId))
+          const game = await this.findGameByOnChainId(onChainGameId)
+          if (game && winner && !['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
+            const winStatus = winner === game.blackPlayer ? 'black_wins' : 'white_wins'
+            await db.update(games).set({
+              status: winStatus,
+              winner,
+              txHashResolve: event.txHash,
+              finishedAt: new Date(),
+              currentTurnDeadline: null,
+            }).where(eq(games.id, game.id))
 
-              broadcastToGame(gameId, {
-                type: WS_EVENTS.GAME_OVER,
-                winner,
-                reason: 'resolve',
-                txHash: event.txHash,
-              })
-            }
+            broadcastToGame(game.id, {
+              type: WS_EVENTS.GAME_OVER,
+              winner,
+              reason: 'resolve',
+              txHash: event.txHash,
+            })
           }
           break
         }
 
         case 'resolve_draw': {
-          if (gameId) {
-            const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
-            if (game && !['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
-              await db.update(games).set({
-                status: 'draw',
-                txHashResolve: event.txHash,
-                finishedAt: new Date(),
-                currentTurnDeadline: null,
-              }).where(eq(games.id, gameId))
+          const game = await this.findGameByOnChainId(onChainGameId)
+          if (game && !['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
+            await db.update(games).set({
+              status: 'draw',
+              txHashResolve: event.txHash,
+              finishedAt: new Date(),
+              currentTurnDeadline: null,
+            }).where(eq(games.id, game.id))
 
-              broadcastToGame(gameId, {
-                type: WS_EVENTS.GAME_OVER,
-                reason: 'draw',
-                txHash: event.txHash,
-              })
-            }
+            broadcastToGame(game.id, {
+              type: WS_EVENTS.GAME_OVER,
+              reason: 'draw',
+              txHash: event.txHash,
+            })
           }
           break
         }
 
         case 'cancel_game': {
-          if (gameId) {
+          const game = await this.findGameByOnChainId(onChainGameId)
+          if (game && game.status === 'waiting') {
             await db.update(games).set({
               status: 'canceled',
               finishedAt: new Date(),
-            }).where(
-              and(eq(games.id, gameId), eq(games.status, 'waiting'))
-            )
-            broadcastToLobby({ type: WS_EVENTS.GAME_CANCELED, gameId })
+            }).where(eq(games.id, game.id))
+            broadcastToLobby({ type: WS_EVENTS.GAME_CANCELED, gameId: game.id })
           }
           break
         }
 
         case 'claim_timeout': {
           const claimer = event.attrs.claimer
-          if (gameId && claimer) {
-            const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
-            if (game && !['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
-              await db.update(games).set({
-                status: 'timeout',
-                winner: claimer,
-                txHashResolve: event.txHash,
-                finishedAt: new Date(),
-                currentTurnDeadline: null,
-              }).where(eq(games.id, gameId))
+          const game = await this.findGameByOnChainId(onChainGameId)
+          if (game && claimer && !['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
+            await db.update(games).set({
+              status: 'timeout',
+              winner: claimer,
+              txHashResolve: event.txHash,
+              finishedAt: new Date(),
+              currentTurnDeadline: null,
+            }).where(eq(games.id, game.id))
 
-              broadcastToGame(gameId, {
-                type: WS_EVENTS.GAME_TIMEOUT,
-                winner: claimer,
-                txHash: event.txHash,
-              })
-            }
+            broadcastToGame(game.id, {
+              type: WS_EVENTS.GAME_TIMEOUT,
+              winner: claimer,
+              txHash: event.txHash,
+            })
           }
           break
         }

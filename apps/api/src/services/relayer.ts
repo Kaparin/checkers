@@ -7,6 +7,7 @@
 
 import { DirectSecp256k1HdWallet, Registry } from '@cosmjs/proto-signing'
 import { SigningStargateClient, defaultRegistryTypes, GasPrice } from '@cosmjs/stargate'
+import type { DeliverTxResponse } from '@cosmjs/stargate'
 import { MsgExec } from 'cosmjs-types/cosmos/authz/v1beta1/tx'
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx'
 import { toUtf8 } from '@cosmjs/encoding'
@@ -15,6 +16,31 @@ import { AXIOME_RPC, AXIOME_PREFIX, AXIOME_GAS_PRICE, AXIOME_HD_PATH } from '@ch
 import { SequenceManager } from './sequence-manager'
 
 const MAX_RETRIES = 3
+
+export interface TxResult {
+  txHash: string
+  events: { type: string; attributes: { key: string; value: string }[] }[]
+}
+
+/** Extract wasm event attributes for our contract */
+function parseWasmEvents(result: DeliverTxResponse, contractAddress: string): Record<string, string> {
+  const attrs: Record<string, string> = {}
+  for (const event of (result.events || [])) {
+    if (event.type !== 'wasm') continue
+    let isOurs = false
+    for (const attr of event.attributes) {
+      if (attr.key === '_contract_address' && attr.value === contractAddress) isOurs = true
+      attrs[attr.key] = attr.value
+    }
+    if (!isOurs) {
+      // clear attrs from non-our-contract events
+      for (const attr of event.attributes) {
+        if (attr.key !== '_contract_address') delete attrs[attr.key]
+      }
+    }
+  }
+  return attrs
+}
 
 export class RelayerService {
   private client: SigningStargateClient | null = null
@@ -79,7 +105,7 @@ export class RelayerService {
     return prev.then(() => release!)
   }
 
-  private async submitTx(msgs: any[], memo = ''): Promise<string> {
+  private async submitTx(msgs: any[], memo = ''): Promise<DeliverTxResponse> {
     if (!this.client || !this.sequenceManager) {
       throw new Error('Relayer not initialized')
     }
@@ -114,7 +140,7 @@ export class RelayerService {
             throw new Error(`Tx failed (code ${result.code}): ${rawLog}`)
           }
 
-          return result.transactionHash
+          return result
         } catch (err: any) {
           const msg = err?.message || ''
 
@@ -130,7 +156,6 @@ export class RelayerService {
           }
 
           if (msg.includes('connect') || msg.includes('ECONNRESET')) {
-            // Reconnect
             await this.reconnect()
             lastError = err
             continue
@@ -166,7 +191,7 @@ export class RelayerService {
   // ── Contract execution helpers ──────────────────────────────────
 
   /** Execute contract msg directly from relayer (admin actions) */
-  private async executeContract(msg: Record<string, unknown>, funds: { denom: string; amount: string }[] = []): Promise<string> {
+  private async executeContract(msg: Record<string, unknown>, funds: { denom: string; amount: string }[] = []): Promise<DeliverTxResponse> {
     const executeMsg = {
       typeUrl: '/cosmwasm.wasm.v1.MsgExecuteContract',
       value: MsgExecuteContract.fromPartial({
@@ -184,7 +209,7 @@ export class RelayerService {
     userAddress: string,
     msg: Record<string, unknown>,
     funds: { denom: string; amount: string }[] = [],
-  ): Promise<string> {
+  ): Promise<DeliverTxResponse> {
     const innerMsg = MsgExecuteContract.fromPartial({
       sender: userAddress,
       contract: this.contractAddress,
@@ -206,21 +231,32 @@ export class RelayerService {
     return this.submitTx([execMsg])
   }
 
+  /** Parse on-chain game_id from tx result wasm events */
+  parseOnChainGameId(result: DeliverTxResponse): number | null {
+    const attrs = parseWasmEvents(result, this.contractAddress)
+    const gameId = attrs.game_id
+    return gameId ? parseInt(gameId, 10) : null
+  }
+
   // ── Public API ──────────────────────────────────────────────────
 
-  /** Create game on behalf of user (authz) */
+  /** Create game on behalf of user (authz). Returns txHash + on-chain game_id */
   async relayCreateGame(
     userAddress: string,
     variant: string,
     timePerMove: number,
     wagerAmount: string,
     denom: string,
-  ): Promise<string> {
-    return this.executeOnBehalf(
+  ): Promise<{ txHash: string; onChainGameId: number | null }> {
+    const result = await this.executeOnBehalf(
       userAddress,
       { create_game: { variant, time_per_move: timePerMove } },
       [{ denom, amount: wagerAmount }],
     )
+    return {
+      txHash: result.transactionHash,
+      onChainGameId: this.parseOnChainGameId(result),
+    }
   }
 
   /** Join game on behalf of user (authz) */
@@ -230,41 +266,46 @@ export class RelayerService {
     wagerAmount: string,
     denom: string,
   ): Promise<string> {
-    return this.executeOnBehalf(
+    const result = await this.executeOnBehalf(
       userAddress,
       { join_game: { game_id: gameId } },
       [{ denom, amount: wagerAmount }],
     )
+    return result.transactionHash
   }
 
   /** Cancel game on behalf of user (authz) */
   async relayCancelGame(userAddress: string, gameId: number): Promise<string> {
-    return this.executeOnBehalf(
+    const result = await this.executeOnBehalf(
       userAddress,
       { cancel_game: { game_id: gameId } },
     )
+    return result.transactionHash
   }
 
   /** Resolve game — admin direct call */
   async relayResolveGame(gameId: number, winner: string): Promise<string> {
-    return this.executeContract({
+    const result = await this.executeContract({
       resolve_game: { game_id: gameId, winner },
     })
+    return result.transactionHash
   }
 
   /** Resolve draw — admin direct call */
   async relayResolveDraw(gameId: number): Promise<string> {
-    return this.executeContract({
+    const result = await this.executeContract({
       resolve_draw: { game_id: gameId },
     })
+    return result.transactionHash
   }
 
   /** Claim timeout — on behalf of user */
   async relayClaimTimeout(userAddress: string, gameId: number): Promise<string> {
-    return this.executeOnBehalf(
+    const result = await this.executeOnBehalf(
       userAddress,
       { claim_timeout: { game_id: gameId } },
     )
+    return result.transactionHash
   }
 
   /** Get relayer address */
