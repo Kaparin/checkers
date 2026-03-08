@@ -81,12 +81,30 @@ Contract: `contracts/checkers-vault/` (Rust, CosmWasm 1.5)
 - [x] Terminal state protection (won't regress resolved games)
 - [x] WebSocket broadcast on state changes
 
-### 2e. Authz + Feegrant Setup
+### 2e. Contract Deployment ✅
+- [x] Deploy checkers-vault: Code ID 42, `axm1dy3rn9qhjak7tg9dfp3r0z0hutwng2rysq0mxf43twa983yfgxksfa9ywc`
+- [x] Strip bulk memory ops (Rust 1.93+ emits memory.copy regardless of target-feature)
+- [x] CHECKERS_CONTRACT env var set on Railway
+
+### 2f. Relayer ↔ Routes Integration ✅
+- [x] Game routes fire relayer calls in background (non-blocking)
+- [x] on_chain_game_id mapping (UUID ↔ contract u64 counter)
+- [x] Indexer matches games by on_chain_game_id with fallback to creator
+- [x] GET /config endpoint (relayer address, contract, chain info)
+- [x] GET /chain/balance/:address, /chain/authz/:address proxy routes
+
+### 2g. Immersive Game Page ✅
+- [x] Full-screen game page without site header
+- [x] Player cards with integrated timers + avatars
+- [x] VS divider, move history slide-over panel
+- [x] Route groups: (main) with header, game without
+
+### 2h. Authz + Feegrant Setup
 - [x] Script template: `scripts/grant-authz.sh`
-- [ ] Deploy contract to chain and set CHECKERS_CONTRACT env var
 - [ ] Grant `ContractExecutionAuthorization` to relayer for checkers contract
 - [ ] `AcceptedMessageKeysFilter` scoped to: create_game, join_game, cancel_game, claim_timeout
 - [ ] NEVER use `GenericAuthorization` on `MsgExecuteContract`
+- [ ] Frontend authz grant flow (user signs MsgGrant from wallet)
 - [ ] Feegrant from treasury to users for gas sponsorship
 
 ---
