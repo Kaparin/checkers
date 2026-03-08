@@ -1,1 +1,0 @@
-E:\Work\checkers\contracts\checkers-vault\target\debug\checkers_vault.dll: E:\Work\checkers\contracts\checkers-vault\src\contract.rs E:\Work\checkers\contracts\checkers-vault\src\error.rs E:\Work\checkers\contracts\checkers-vault\src\lib.rs E:\Work\checkers\contracts\checkers-vault\src\msg.rs E:\Work\checkers\contracts\checkers-vault\src\state.rs
