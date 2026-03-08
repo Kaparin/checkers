@@ -1,8 +1,8 @@
 # Checkers — Roadmap
 
-## Current State (2026-03-07)
+## Current State (2026-03-08)
 
-Project built and pushed to GitHub. Core functionality complete:
+Project built and pushed to GitHub. Core + blockchain infrastructure complete:
 - Full game engine: Russian checkers (primary) + American checkers (alternative)
 - Online multiplayer via WebSocket with real-time moves
 - Game lobby with auto-refresh, invite links
@@ -12,6 +12,9 @@ Project built and pushed to GitHub. Core functionality complete:
 - 5 board themes, sound effects (Web Audio API)
 - Draw offer/accept, resign, spectator mode
 - Light minimalistic UI (Next.js 15 + Tailwind CSS 4)
+- **Wallet auth**: challenge-response, HMAC stateless sessions, mnemonic wallet with AES-256-GCM encryption
+- **Smart contract**: `checkers-vault` (CosmWasm 1.5, native AXM wagers, 14 tests passing)
+- **Relayer + Indexer**: sequence manager, authz MsgExec, block polling, event sync
 
 ### Infrastructure Status
 - **GitHub**: https://github.com/Kaparin/checkers.git
@@ -44,51 +47,45 @@ Project built and pushed to GitHub. Core functionality complete:
 
 ## Phase 2 — Blockchain Integration
 
-### 2a. Wallet Auth
-Copy pattern from coinflip project (`apps/api/src/routes/auth.ts` in coinflip):
-- [ ] "Connect Wallet" button in header (Axiome wallet extension)
-- [ ] Sign nonce with wallet private key
-- [ ] Backend verifies signature, creates session with Bearer token
-- [ ] sessionStorage for token + address (same as coinflip)
-- [ ] iOS Safari fallback: Bearer token in sessionStorage, WS passes `?token=` query param
+### 2a. Wallet Auth ✅
+- [x] "Connect Wallet" button in header + connect modal
+- [x] Mnemonic import with AES-256-GCM encryption (PIN-based, PBKDF2)
+- [x] Challenge-response: GET /auth/challenge → sign nonce → POST /auth/verify
+- [x] HMAC stateless session tokens (no DB sessions needed)
+- [x] Cookie + Bearer token fallback (iOS Safari compatibility)
+- [x] WS passes `?token=` query param for authentication
 
-### 2b. Game Smart Contract (CosmWasm)
-Contract: `contracts/checkers-vault/` (Rust, CosmWasm 1.4)
+### 2b. Game Smart Contract (CosmWasm) ✅
+Contract: `contracts/checkers-vault/` (Rust, CosmWasm 1.5)
 
 **Messages:**
-- `CreateGame { variant, time_per_move }` — locks wager (native AXM initially)
+- `CreateGame { variant, time_per_move }` — locks wager (native AXM)
 - `JoinGame { game_id }` — locks opponent's wager
-- `ResolveGame { game_id, winner }` — called by relayer, pays winner (2x wager minus 10% commission)
-- `CancelGame { game_id }` — refund creator (only before opponent joins)
-- `ClaimTimeout { game_id }` — safety net if relayer doesn't resolve within deadline
+- `ResolveGame { game_id, winner }` — called by relayer, pays winner (2x minus 10%)
+- `ResolveDraw { game_id }` — refund both players
+- `CancelGame { game_id }` — refund creator (before opponent joins)
+- `ClaimTimeout { game_id }` — safety net if relayer doesn't resolve
 
-**Config:**
-- Admin: relayer address
-- Commission: 1000 BPS (10%)
-- Treasury: receives commission
-- Initially native AXM; later switch to CW20 SHASHKA
+**Testing:** 14 tests passing (full lifecycle, auth, edge cases)
 
-**Testing:**
-- Unit tests with `cw-multi-test`
-- Full lifecycle: create -> join -> resolve, create -> cancel, create -> join -> timeout claim
+### 2c. Relayer Service ✅
+- [x] SequenceManager with mutex (prevent nonce races)
+- [x] MsgExec via x/authz (execute contract on behalf of users)
+- [x] Mutex-based broadcast lock (serialized txs)
+- [x] Retry logic with sequence refresh on mismatch
 
-### 2c. Relayer Service
-Copy from coinflip (`apps/api/src/services/relayer.ts`):
-- [ ] Sequence manager with mutex (prevent nonce races)
-- [ ] MsgExec via x/authz (execute contract on behalf of users)
-- [ ] Background broadcast queue
-- [ ] Retry logic with sequence refresh on mismatch
-
-### 2d. Indexer
-Copy from coinflip (`apps/api/src/services/indexer.ts`):
-- [ ] Poll chain blocks for contract events
-- [ ] Sync on-chain game state with PostgreSQL
-- [ ] Terminal state protection (`WHERE status IN (...)` to prevent regressions)
-- [ ] WebSocket broadcast on state changes
+### 2d. Indexer ✅
+- [x] Poll chain blocks (REST API, 3s interval, max 10 blocks/poll)
+- [x] Extract wasm events for checkers contract
+- [x] Sync game state with PostgreSQL
+- [x] Terminal state protection (won't regress resolved games)
+- [x] WebSocket broadcast on state changes
 
 ### 2e. Authz + Feegrant Setup
-- [ ] Script: grant `ContractExecutionAuthorization` to relayer for checkers contract
-- [ ] `AcceptedMessageKeysFilter` scoped to: create_game, join_game, resolve_game, cancel_game
+- [x] Script template: `scripts/grant-authz.sh`
+- [ ] Deploy contract to chain and set CHECKERS_CONTRACT env var
+- [ ] Grant `ContractExecutionAuthorization` to relayer for checkers contract
+- [ ] `AcceptedMessageKeysFilter` scoped to: create_game, join_game, cancel_game, claim_timeout
 - [ ] NEVER use `GenericAuthorization` on `MsgExecuteContract`
 - [ ] Feegrant from treasury to users for gas sponsorship
 
