@@ -190,14 +190,37 @@ checkers/
 | Chain proxy routes | ✅ | `/chain/balance`, `/chain/authz`, `/chain/fund-gas` |
 | Next.js RPC/REST rewrites | ✅ | `/chain-rpc/*`, `/chain-rest/*` — avoids CORS |
 
-### 4.9. Current Database (4 tables)
+### 4.9. Current Database (20+ tables)
 
-| Table | Columns |
+| Table | Status |
 |---|---|
-| `users` | address, username, avatarUrl, gamesPlayed/Won/Lost/Draw, totalWagered/Won, elo, isOnline, lastSeen |
-| `games` | id (UUID), blackPlayer, whitePlayer, winner, status, variant, wager, timePerMove, gameState (JSONB), moveCount, currentTurnDeadline, onChainGameId, txHash*, timestamps |
-| `game_moves` | id, gameId, moveNumber, player, from/to row/col, captures (JSONB), promotion |
-| `sessions` | id, address, token, expiresAt |
+| `users` | ✅ Core player data, ELO, stats |
+| `games` | ✅ Game state, wager, on-chain refs |
+| `game_moves` | ✅ Move history per game |
+| `sessions` | ✅ (unused — HMAC sessions) |
+| `platform_config` | ✅ KV settings store |
+| `vault_balances` | ✅ Per-user: available, locked, bonus, CHECKER |
+| `vault_transactions` | ✅ Deposit/withdraw history |
+| `treasury_ledger` | ✅ Commission entries |
+| `tx_events` | ✅ User action audit log |
+| `relayer_transactions` | ✅ Relayer broadcast audit |
+| `referral_codes` | ✅ Unique 8-char codes |
+| `referrals` | ✅ Who invited whom |
+| `referral_rewards` | ✅ Per-reward: amount, level |
+| `referral_balances` | ✅ Per-user totals |
+| `jackpot_tiers` | ✅ 5 tiers: mini → super_mega |
+| `jackpot_pools` | ✅ Active pools with progress |
+| `jackpot_contributions` | ✅ Per-game idempotent |
+| `game_messages` | ✅ In-game chat |
+| `global_chat_messages` | ✅ Lobby chat |
+| `vip_config` | ✅ Tier pricing |
+| `vip_subscriptions` | ✅ Active subs |
+| `vip_customization` | ✅ Cosmetics per user |
+| `shop_purchases` | ✅ Purchase log |
+| `events` | ✅ Contests & raffles |
+| `event_participants` | ✅ Participation tracking |
+| `announcements` | ✅ System broadcasts |
+| `staking_ledger` | ✅ 2% commission → LAUNCH |
 
 ---
 
@@ -407,16 +430,16 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 ### Phase 4 — VIP, Shop & Social 🟡
 **Goal**: Monetization + social features.
 
-- [ ] VIP tables: subscriptions, config, customization
-- [ ] VIP service — tiers (silver/gold/diamond), subscription CRUD
+- [x] VIP tables: subscriptions, config, customization
+- [x] VIP service — tiers (silver/gold/diamond), subscription CRUD
 - [ ] VIP UI — subscribe, cosmetics (name gradient, frame, badge)
 - [ ] VIP perks: premium board themes, piece skins
-- [ ] Shop tables: purchases
-- [ ] Shop service — chest tiers, CHECKER crediting
-- [ ] Shop UI — chest bundles, purchase flow
-- [ ] In-game chat (messages during game)
+- [x] Shop tables: purchases
+- [x] Shop service — chest tiers, CHECKER crediting
+- [x] Shop UI — chest bundles, purchase flow
+- [x] In-game chat (messages during game)
 - [ ] Global lobby chat with styles/effects
-- [ ] Player profiles (avatar, bio, stats)
+- [x] Player profiles (avatar, bio, stats)
 - [ ] P2P CHECKER transfers
 - [ ] Achievements (milestone-based CHECKER rewards)
 - [ ] Admin tabs: VIP, Shop
@@ -424,18 +447,18 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 ### Phase 5 — Events & Content 🟡
 **Goal**: Community engagement.
 
-- [ ] Events tables: events, participants
-- [ ] Events service — contests, raffles, prize distribution
+- [x] Events tables: events, participants
+- [x] Events service — contests, raffles
 - [ ] Sponsored events (user-created, admin approval)
-- [ ] Announcements service — broadcast + sponsored
+- [x] Announcements table + API
 - [ ] News service — CRUD with i18n (EN/RU)
 - [ ] Activity feed (unified history via UNION ALL)
 - [ ] Admin tabs: Events, Announcements, News
 
-### Phase 6 — LAUNCH Staking 🟢
+### Phase 6 — LAUNCH Staking 🟡
 **Goal**: 2% commission → LAUNCH stakers.
 
-- [ ] Staking ledger — per-game 2% contributions from commission
+- [x] Staking ledger — per-game 2% contributions from commission
 - [ ] Staking flush — batch distribute to LAUNCH stakers on-chain
 - [ ] Staking UI page (rewards display)
 - [ ] Admin tab: Staking
@@ -659,17 +682,16 @@ All admin endpoints under `/api/admin/*`, protected by `requireAdmin` middleware
 | Treasury & Economy | 6/6 | 0 | ✅ Complete |
 | Admin Panel | 7/15 | 8 | 🟡 47% |
 | Referrals | 7/7 | 0 | ✅ Complete |
-| Jackpot | 0/6 | 6 | ❌ 0% |
-| VIP | 0/5 | 5 | ❌ 0% |
-| Shop | 0/6 | 6 | ❌ 0% |
-| Social | 0/7 | 7 | ❌ 0% |
-| Events | 0/5 | 5 | ❌ 0% |
-| LAUNCH Staking | 0/3 | 3 | ❌ 0% |
-| LAUNCH Staking | 0/3 | 3 | ❌ 0% |
+| Jackpot | 6/6 | 0 | ✅ Complete |
+| VIP | 3/5 | 2 | 🟡 60% |
+| Shop | 4/6 | 2 | 🟡 67% |
+| Social | 3/7 | 4 | 🟡 43% |
+| Events | 4/5 | 1 | 🟡 80% |
+| LAUNCH Staking | 1/4 | 3 | 🟡 25% |
 | UX Polish | 6/12 | 6 | 🟡 50% |
 | Background tasks | 3/6 | 3 | 🟡 50% |
 | Audit & Logging | 2/3 | 1 | 🟡 67% |
 
-**Core gameplay: 100% complete. Economy & referrals: ~55% complete.**
+**Core gameplay: 100% complete. Economy & features: ~75% complete.**
 
-Next priority: Phase 3 remaining (jackpot system) → Phase 4 (VIP, shop, social).
+Next priority: Phase 7 polish (spectator mode, replays, i18n) + remaining Phase 4-6 items.
