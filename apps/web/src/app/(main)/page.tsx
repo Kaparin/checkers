@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { GameLobby } from '@/components/layout/game-lobby'
 import { WalletSetup } from '@/components/ui/wallet-setup'
+import { LobbyChat } from '@/components/ui/lobby-chat'
+import { AnnouncementsBanner } from '@/components/ui/announcements-banner'
 
 export default function HomePage() {
   const [activeGame, setActiveGame] = useState<string | null>(null)
@@ -24,8 +26,10 @@ export default function HomePage() {
 
   return (
     <>
+      <AnnouncementsBanner />
       <WalletSetup />
       <GameLobby onJoinGame={setActiveGame} />
+      <LobbyChat />
     </>
   )
 }

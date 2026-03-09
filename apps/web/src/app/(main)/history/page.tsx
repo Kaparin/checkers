@@ -61,13 +61,24 @@ export default function HistoryPage() {
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-text-muted">
-                    {game.finishedAt ? new Date(game.finishedAt).toLocaleDateString() : ''}
-                  </p>
-                  <p className="text-xs text-text-muted capitalize">
-                    {game.status.replace('_', ' ')}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs text-text-muted">
+                      {game.finishedAt ? new Date(game.finishedAt).toLocaleDateString() : ''}
+                    </p>
+                    <p className="text-xs text-text-muted capitalize">
+                      {game.status.replace('_', ' ')}
+                    </p>
+                  </div>
+                  {game.moveCount > 0 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); router.push(`/replay/${game.id}`) }}
+                      className="px-2 py-1 text-[10px] font-medium text-accent border border-accent/30 rounded-md hover:bg-accent/5 transition-colors"
+                      title="Replay game"
+                    >
+                      Replay
+                    </button>
+                  )}
                 </div>
               </div>
             )

@@ -386,8 +386,8 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 **Goal**: Playable online checkers with wagers, deployed and working.
 
 - [x] Fix Vercel deploy (cosmjs-types dependency)
-- [ ] Fix Railway deploy
-- [ ] Set Vercel + Railway env vars
+- [x] Fix Railway deploy
+- [x] Set Vercel + Railway env vars
 - [ ] E2E test: create → join → play → finish → ELO + on-chain resolution
 - [x] Mobile responsive board
 - [x] Touch drag-and-drop for pieces
@@ -420,9 +420,9 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 - [x] Referral service — code generation, L1/L2/L3 reward distribution
 - [x] Referral UI — link sharing, earnings dashboard, apply code
 - [x] Auto-apply referral from URL (?ref=CODE)
-- [ ] Jackpot tables: tiers, pools, contributions
-- [ ] Jackpot service — contribution tracking, draw logic
-- [ ] Jackpot UI — current pools, winner announcements
+- [x] Jackpot tables: tiers, pools, contributions
+- [x] Jackpot service — contribution tracking, draw logic
+- [x] Jackpot UI — current pools, winner announcements
 - [ ] Commission breakdown by source
 - [ ] Partner config + partner ledger
 - [ ] Admin tabs: Commission, Jackpot
