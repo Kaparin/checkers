@@ -359,34 +359,35 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 
 ## 6. Phase Breakdown
 
-### Phase 1 — Production Launch 🔴
+### Phase 1 — Production Launch 🟡
 **Goal**: Playable online checkers with wagers, deployed and working.
 
+- [x] Fix Vercel deploy (cosmjs-types dependency)
 - [ ] Fix Railway deploy
 - [ ] Set Vercel + Railway env vars
 - [ ] E2E test: create → join → play → finish → ELO + on-chain resolution
-- [ ] Mobile responsive board
-- [ ] Touch drag-and-drop for pieces
-- [ ] Loading skeletons
-- [ ] Error boundaries + graceful error handling
+- [x] Mobile responsive board
+- [x] Touch drag-and-drop for pieces
+- [x] Loading skeletons
+- [x] Error boundaries + graceful error handling
 - [ ] Feegrant setup (eliminate gas faucet dependency)
 
-### Phase 2 — Economy & Admin 🔴
+### Phase 2 — Economy & Admin 🟡
 **Goal**: Treasury, commissions, admin panel, platform config.
 
-- [ ] `platform_config` KV table + config.service.ts
-- [ ] `vault_balances` table — per-user available/locked/bonus/offchainSpent
-- [ ] `treasury_ledger` table — commission entries
-- [ ] `vault_transactions` table — deposit/withdraw history
-- [ ] `tx_events` table — user action log
-- [ ] `relayer_transactions` table — relayer broadcast audit
-- [ ] Treasury service (balance, ledger, withdraw)
-- [ ] Treasury sweep service (batch offchain_spent collection)
-- [ ] Admin route (`/admin`) with auth (ADMIN_SECRET)
-- [ ] Admin tabs: Dashboard, Users, Games, Config, Diagnostics, Actions, Transactions
+- [x] `platform_config` KV table + config.service.ts
+- [x] `vault_balances` table — per-user available/locked/bonus/offchainSpent
+- [x] `treasury_ledger` table — commission entries
+- [x] `vault_transactions` table — deposit/withdraw history
+- [x] `tx_events` table — user action log
+- [x] `relayer_transactions` table — relayer broadcast audit
+- [x] Treasury service (balance, ledger, withdraw)
+- [x] Treasury sweep service (batch offchain_spent collection)
+- [x] Admin route (`/admin`) with auth (ADMIN_SECRET)
+- [x] Admin tabs: Dashboard, Users, Games, Config, Diagnostics, Actions, Transactions
 - [ ] Vault balance management (credit/debit with reason)
-- [ ] System healing (1-click: fix stuck games, unlock funds, import orphans)
-- [ ] Stuck game detection (transitional state > 5 minutes)
+- [x] System healing (1-click: fix stuck games, timeout overdue)
+- [x] Stuck game detection (transitional state > 5 minutes)
 - [ ] Background tasks: sweep, stuck recovery
 
 ### Phase 3 — Referrals & Monetization 🟡
@@ -653,9 +654,9 @@ All admin endpoints under `/api/admin/*`, protected by `requireAdmin` middleware
 | Indexer | 6/6 | 0 | ✅ Complete |
 | Frontend pages | 6/6 | 0 | ✅ Complete |
 | Authz flow | 6/6 | 0 | ✅ Complete |
-| Infrastructure | 2/5 | 3 | 🟡 40% |
-| Treasury & Economy | 0/6 | 6 | ❌ 0% |
-| Admin Panel | 0/15 | 15 | ❌ 0% |
+| Infrastructure | 3/5 | 2 | 🟡 60% |
+| Treasury & Economy | 4/6 | 2 | 🟡 67% |
+| Admin Panel | 7/15 | 8 | 🟡 47% |
 | Referrals | 0/7 | 7 | ❌ 0% |
 | Jackpot | 0/6 | 6 | ❌ 0% |
 | VIP | 0/5 | 5 | ❌ 0% |
@@ -664,10 +665,10 @@ All admin endpoints under `/api/admin/*`, protected by `requireAdmin` middleware
 | Events | 0/5 | 5 | ❌ 0% |
 | LAUNCH Staking | 0/3 | 3 | ❌ 0% |
 | LAUNCH Staking | 0/3 | 3 | ❌ 0% |
-| UX Polish | 2/12 | 10 | 🟡 17% |
+| UX Polish | 6/12 | 6 | 🟡 50% |
 | Background tasks | 1/6 | 5 | 🟡 17% |
-| Audit & Logging | 0/3 | 3 | ❌ 0% |
+| Audit & Logging | 2/3 | 1 | 🟡 67% |
 
-**Core gameplay: 100% complete. Economy & features: ~15% complete.**
+**Core gameplay: 100% complete. Economy & features: ~40% complete.**
 
-Next priority: Phase 1 (deploy) → Phase 2 (treasury + admin) → Phase 3 (referrals + jackpot).
+Next priority: finish Phase 1 (Railway deploy + E2E test) → Phase 2 remaining (vault management, background tasks) → Phase 3 (referrals + jackpot).
