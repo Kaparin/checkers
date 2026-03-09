@@ -12,6 +12,7 @@ import { getGame, makeMove, resignGame, offerDraw, acceptDraw } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
+import { GameChat } from '@/components/ui/game-chat'
 import type { GameState, PieceColor } from '@checkers/shared'
 
 function PlayerCard({
@@ -450,6 +451,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           </>
         )}
       </div>
+
+      {/* In-game chat */}
+      {!isWaiting && <GameChat gameId={gameId} />}
 
       {/* Game over modal */}
       {showGameOver && (

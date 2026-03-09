@@ -9,6 +9,7 @@ import * as treasurySchema from './schema/treasury'
 import * as auditSchema from './schema/audit'
 import * as referralsSchema from './schema/referrals'
 import * as jackpotSchema from './schema/jackpot'
+import * as chatSchema from './schema/chat'
 
 export const schema = {
   ...usersSchema,
@@ -20,6 +21,7 @@ export const schema = {
   ...auditSchema,
   ...referralsSchema,
   ...jackpotSchema,
+  ...chatSchema,
 }
 
 export function createDb(databaseUrl: string) {
@@ -38,3 +40,4 @@ export { treasuryLedger } from './schema/treasury'
 export { txEvents, relayerTransactions } from './schema/audit'
 export { referralCodes, referrals, referralRewards, referralBalances } from './schema/referrals'
 export { jackpotTiers, jackpotPools, jackpotContributions } from './schema/jackpot'
+export { gameMessages, globalChatMessages } from './schema/chat'

@@ -24,9 +24,12 @@ export function Header() {
 
           {isConnected ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-text-secondary px-2 py-1 bg-bg-subtle rounded-lg">
+              <a
+                href="/profile"
+                className="text-xs font-mono text-text-secondary px-2 py-1 bg-bg-subtle rounded-lg hover:bg-bg-subtle/70 transition-colors"
+              >
                 {address!.slice(0, 8)}...{address!.slice(-4)}
-              </span>
+              </a>
               <button
                 onClick={disconnect}
                 className="text-xs text-text-muted hover:text-danger transition-colors"

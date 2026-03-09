@@ -12,6 +12,7 @@ import { chainRoutes } from './routes/chain'
 import { adminRoutes } from './routes/admin'
 import { referralRoutes } from './routes/referrals'
 import { jackpotRoutes } from './routes/jackpot'
+import { chatRoutes } from './routes/chat'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
@@ -57,6 +58,7 @@ app.route('/chain', chainRoutes)
 app.route('/admin', adminRoutes)
 app.route('/referrals', referralRoutes)
 app.route('/jackpot', jackpotRoutes)
+app.route('/chat', chatRoutes)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }))
