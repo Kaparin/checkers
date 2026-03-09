@@ -93,7 +93,7 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
         const moveHistory = parsed.moveHistory || parsed.mh || []
         setMoves(moveHistory)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load game')
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки игры')
       } finally {
         setLoading(false)
       }
@@ -130,7 +130,7 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
     return (
       <div className="max-w-xl mx-auto text-center py-16">
         <p className="text-danger mb-4">{error}</p>
-        <button onClick={() => router.push('/history')} className="text-sm text-accent hover:underline">Back to history</button>
+        <button onClick={() => router.push('/history')} className="text-sm text-accent hover:underline">Назад к истории</button>
       </div>
     )
   }
@@ -138,8 +138,8 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
   if (!state || moves.length === 0) {
     return (
       <div className="max-w-xl mx-auto text-center py-16">
-        <p className="text-text-muted mb-4">No moves to replay</p>
-        <button onClick={() => router.push('/history')} className="text-sm text-accent hover:underline">Back to history</button>
+        <p className="text-text-muted mb-4">Нет ходов для повтора</p>
+        <button onClick={() => router.push('/history')} className="text-sm text-accent hover:underline">Назад к истории</button>
       </div>
     )
   }
@@ -149,10 +149,10 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
       {/* Header */}
       <div className="flex items-center justify-between">
         <button onClick={() => router.push('/history')} className="text-sm text-text-secondary hover:text-text">
-          &larr; Back
+          &larr; Назад
         </button>
         <div className="text-sm font-medium text-text-secondary">
-          {(Number(wager) / 1_000_000).toFixed(0)} AXM &middot; {variant === 'russian' ? 'Russian' : 'American'}
+          {(Number(wager) / 1_000_000).toFixed(0)} AXM &middot; {variant === 'russian' ? 'Русские' : 'Американские'}
         </div>
       </div>
 
@@ -161,11 +161,11 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 bg-piece-black rounded-full" />
           <span className="text-xs font-medium">{shortAddr(blackPlayer)}</span>
-          {winner === blackPlayer && <span className="text-[10px] text-success font-semibold">W</span>}
+          {winner === blackPlayer && <span className="text-[10px] text-success font-semibold">П</span>}
         </div>
         <span className="text-xs text-text-muted">vs</span>
         <div className="flex items-center gap-2">
-          {winner === whitePlayer && <span className="text-[10px] text-success font-semibold">W</span>}
+          {winner === whitePlayer && <span className="text-[10px] text-success font-semibold">П</span>}
           <span className="text-xs font-medium">{shortAddr(whitePlayer)}</span>
           <div className="w-6 h-6 bg-piece-white rounded-full border border-border" />
         </div>
@@ -201,7 +201,7 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
           onClick={() => setPlaying(!playing)}
           className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium"
         >
-          {playing ? 'Pause' : 'Play'}
+          {playing ? 'Пауза' : 'Играть'}
         </button>
         <button
           onClick={() => { setCurrentMove(Math.min(moves.length, currentMove + 1)); setPlaying(false) }}
@@ -223,7 +223,7 @@ export default function ReplayPage({ params }: { params: Promise<{ id: string }>
 
       {/* Progress */}
       <div className="text-center text-xs text-text-muted">
-        Move {currentMove} / {moves.length}
+        Ход {currentMove} / {moves.length}
       </div>
 
       {/* Move list */}

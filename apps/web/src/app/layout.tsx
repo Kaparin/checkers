@@ -6,12 +6,12 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Checkers — Play & Earn',
-  description: 'Play checkers with real wagers on Axiome blockchain',
+  title: 'Шашки — Играй и Зарабатывай',
+  description: 'Играй в шашки на ставку в блокчейне Axiome',
   manifest: '/manifest.json',
   openGraph: {
-    title: 'Checkers — Play & Earn',
-    description: 'Play checkers with real wagers on Axiome blockchain',
+    title: 'Шашки — Играй и Зарабатывай',
+    description: 'Играй в шашки на ставку в блокчейне Axiome',
     type: 'website',
   },
 }
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ru">
       <body className="min-h-screen bg-bg antialiased">
         <ErrorBoundary>
           <ToastProvider>

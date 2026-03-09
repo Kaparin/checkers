@@ -47,9 +47,9 @@ export default function ShopPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight">Shop</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Магазин</h1>
         <p className="text-text-secondary text-sm">
-          Buy chests with AXM to earn CHECKER tokens for cosmetics and features.
+          Покупайте сундуки за AXM и получайте токены CHECKER для косметики и функций.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export default function ShopPage() {
       {result && (
         <div className="p-4 bg-success/10 border border-success/30 rounded-xl text-center">
           <p className="text-sm font-medium text-success">
-            +{result.reward} CHECKER earned!
+            +{result.reward} CHECKER получено!
           </p>
         </div>
       )}
@@ -96,7 +96,7 @@ export default function ShopPage() {
                 disabled={!isConnected || buying === item.id}
                 className="w-full py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
-                {buying === item.id ? 'Buying...' : isConnected ? 'Buy' : 'Connect'}
+                {buying === item.id ? 'Покупка...' : isConnected ? 'Купить' : 'Войти'}
               </button>
             </div>
           ))}
@@ -105,12 +105,12 @@ export default function ShopPage() {
 
       {/* Info */}
       <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold">About CHECKER Tokens</h2>
+        <h2 className="text-lg font-semibold">О токенах CHECKER</h2>
         <ul className="space-y-2 text-sm text-text-secondary">
-          <li>CHECKER is a virtual in-game token — not on-chain, only used within Checkers.</li>
-          <li>Use CHECKER to unlock premium board themes, piece skins, and cosmetics.</li>
-          <li>VIP subscribers earn monthly CHECKER bonuses.</li>
-          <li>Earn CHECKER through chests, achievements, and events.</li>
+          <li>CHECKER — виртуальный игровой токен, не на блокчейне, используется только внутри Checkers.</li>
+          <li>Используйте CHECKER для разблокировки тем доски, скинов фигур и косметики.</li>
+          <li>VIP-подписчики получают ежемесячные бонусы CHECKER.</li>
+          <li>Зарабатывайте CHECKER через сундуки, достижения и события.</li>
         </ul>
       </div>
     </div>

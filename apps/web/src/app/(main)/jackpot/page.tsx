@@ -49,9 +49,9 @@ export default function JackpotPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight">Jackpot</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Джекпот</h1>
         <p className="text-text-secondary text-sm">
-          Every game contributes to the jackpot pools. When a pool reaches its target, a random winner is drawn!
+          Каждая игра пополняет джекпот-пулы. Когда пул достигает цели, выбирается случайный победитель!
         </p>
       </div>
 
@@ -69,7 +69,7 @@ export default function JackpotPage() {
         </div>
       ) : pools.length === 0 ? (
         <div className="border border-dashed border-border rounded-2xl p-12 text-center">
-          <p className="text-text-muted">No jackpot pools active yet.</p>
+          <p className="text-text-muted">Активных пулов пока нет.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -82,7 +82,7 @@ export default function JackpotPage() {
               >
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">{pool.name}</h3>
-                  <span className="text-xs text-text-muted">Cycle #{pool.cycle}</span>
+                  <span className="text-xs text-text-muted">Цикл #{pool.cycle}</span>
                 </div>
 
                 <div className="text-2xl font-bold">
@@ -99,7 +99,7 @@ export default function JackpotPage() {
                   </div>
                   <div className="flex justify-between text-xs text-text-muted">
                     <span>{pct.toFixed(1)}%</span>
-                    <span>Target: {formatAXM(pool.targetAmount)} AXM</span>
+                    <span>Цель: {formatAXM(pool.targetAmount)} AXM</span>
                   </div>
                 </div>
               </div>
@@ -112,15 +112,15 @@ export default function JackpotPage() {
       {winners.length > 0 && (
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
           <div className="p-4 border-b border-border">
-            <h2 className="text-lg font-semibold">Recent Winners</h2>
+            <h2 className="text-lg font-semibold">Последние победители</h2>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-text-secondary">
-                <th className="text-left p-4 font-medium">Tier</th>
-                <th className="text-left p-4 font-medium">Winner</th>
-                <th className="text-right p-4 font-medium">Amount</th>
-                <th className="text-right p-4 font-medium">Date</th>
+                <th className="text-left p-4 font-medium">Уровень</th>
+                <th className="text-left p-4 font-medium">Победитель</th>
+                <th className="text-right p-4 font-medium">Сумма</th>
+                <th className="text-right p-4 font-medium">Дата</th>
               </tr>
             </thead>
             <tbody>
@@ -149,12 +149,12 @@ export default function JackpotPage() {
 
       {/* Info */}
       <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold">How It Works</h2>
+        <h2 className="text-lg font-semibold">Как это работает</h2>
         <ul className="space-y-2 text-sm text-text-secondary">
-          <li>A small percentage of each game's commission is split across jackpot pools.</li>
-          <li>Each pool has a target amount. When the target is reached, a random winner is drawn.</li>
-          <li>Your chances of winning are proportional to how many games you've played — more games = more tickets.</li>
-          <li>After a winner is drawn, the pool resets to a new cycle.</li>
+          <li>Небольшой процент от комиссии каждой игры распределяется по джекпот-пулам.</li>
+          <li>У каждого пула есть целевая сумма. Когда цель достигнута, выбирается случайный победитель.</li>
+          <li>Ваши шансы пропорциональны количеству сыгранных игр — больше игр = больше шансов.</li>
+          <li>После розыгрыша пул обнуляется и начинается новый цикл.</li>
         </ul>
       </div>
     </div>

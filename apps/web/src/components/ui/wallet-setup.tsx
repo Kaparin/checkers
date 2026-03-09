@@ -9,6 +9,7 @@ export function WalletSetup() {
   const { address, isConnected } = useWallet()
   const [needsSetup, setNeedsSetup] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
 
@@ -37,6 +38,7 @@ export function WalletSetup() {
     if (!address) return
     setLoading(true)
     setError(null)
+    setStep('Проверка сети...')
 
     try {
       const config = await getChainConfig()
@@ -44,24 +46,27 @@ export function WalletSetup() {
         throw new Error('Сеть не настроена')
       }
 
-      // Check balance, fund gas if needed (invisible to user)
+      // Check balance, fund gas if needed
+      setStep('Проверка баланса...')
       const balance = await getBalance(address)
       if (Number(balance) < 50000) {
+        setStep('Получение газа...')
         await requestGasFunding()
-        // Wait for tx inclusion
         await new Promise(r => setTimeout(r, 4000))
       }
 
       // Sign and broadcast authz grant
+      setStep('Подпишите транзакцию в кошельке...')
       await grantAuthzToRelayer(address, config.relayerAddress, config.contractAddress)
 
       // Wait for indexing, then verify
+      setStep('Подтверждение в сети...')
       await new Promise(r => setTimeout(r, 5000))
       const granted = await checkAuthzGrant(address)
       if (granted) {
         setNeedsSetup(false)
       } else {
-        // May need more time
+        setStep('Ожидание подтверждения...')
         await new Promise(r => setTimeout(r, 5000))
         setNeedsSetup(!(await checkAuthzGrant(address)))
       }
@@ -77,6 +82,7 @@ export function WalletSetup() {
       }
     } finally {
       setLoading(false)
+      setStep(null)
     }
   }
 
@@ -102,9 +108,12 @@ export function WalletSetup() {
         <button
           onClick={handleAuthorize}
           disabled={loading}
-          className="w-full py-2.5 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
+          className="w-full py-2.5 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {loading ? 'Авторизация...' : 'Авторизовать'}
+          {loading && (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          )}
+          {loading ? (step || 'Авторизация...') : 'Авторизовать'}
         </button>
 
         {error && (

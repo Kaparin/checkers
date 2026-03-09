@@ -43,7 +43,7 @@ export function InviteLink({ gameId }: InviteLinkProps) {
         onClick={handleCopy}
         className="shrink-0 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent-hover transition-colors"
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {copied ? 'Скопировано!' : 'Копировать'}
       </button>
     </div>
   )

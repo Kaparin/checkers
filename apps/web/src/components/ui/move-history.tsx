@@ -35,8 +35,8 @@ export function MoveHistory({ moves }: MoveHistoryProps) {
   if (moves.length === 0) {
     return (
       <div className="bg-bg-card border border-border rounded-xl p-4">
-        <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">Moves</h3>
-        <p className="text-xs text-text-muted text-center py-4">No moves yet</p>
+        <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">Ходы</h3>
+        <p className="text-xs text-text-muted text-center py-4">Ходов пока нет</p>
       </div>
     )
   }
@@ -53,7 +53,7 @@ export function MoveHistory({ moves }: MoveHistoryProps) {
 
   return (
     <div className="bg-bg-card border border-border rounded-xl p-4">
-      <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">Moves</h3>
+      <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">Ходы</h3>
       <div ref={scrollRef} className="max-h-60 overflow-y-auto space-y-0.5">
         {pairs.map(pair => (
           <div key={pair.num} className="flex text-xs font-mono">

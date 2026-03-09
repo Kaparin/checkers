@@ -8,7 +8,7 @@ import { MoveHistory } from '@/components/ui/move-history'
 import { InviteLink } from '@/components/ui/invite-link'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw, createGame } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw, createGame, cancelGame } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
@@ -54,7 +54,7 @@ function PlayerCard({
 
   const short = address
     ? `${address.slice(0, 8)}...${address.slice(-4)}`
-    : 'Waiting...'
+    : 'Ожидание...'
 
   return (
     <div className={`flex items-center gap-3 w-full max-w-md ${isTop ? '' : ''}`}>
@@ -75,7 +75,7 @@ function PlayerCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <span className="text-sm font-medium text-text truncate">
-            {isTop ? short : `You (${short})`}
+            {isTop ? short : `Вы (${short})`}
           </span>
           <span className={`text-sm font-mono font-semibold tabular-nums ${
             isLow ? 'text-danger animate-pulse' : isCurrentTurn ? 'text-text' : 'text-text-muted'
@@ -152,7 +152,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           setShowGameOver(true)
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load game')
+        setError(err instanceof Error ? err.message : 'Ошибка загрузки игры')
       } finally {
         setLoading(false)
       }
@@ -183,18 +183,18 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           const state = parsed.b && typeof parsed.b === 'string'
             ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || game.variant || 'russian' } as GameState
           setGameState(state)
-          toast('Opponent joined!')
+          toast('Соперник присоединился!')
         })
       }
       if (msg.type === 'game:timeout') {
         setWinner(msg.winner as string | null)
         setShowGameOver(true)
-        toast(msg.winner === address ? 'Opponent timed out — you win!' : 'You ran out of time', msg.winner === address ? 'success' : 'error')
+        toast(msg.winner === address ? 'Соперник не успел — вы победили!' : 'Время вышло', msg.winner === address ? 'success' : 'error')
       }
       if (msg.type === 'draw:offer') {
         if (msg.from !== address) {
           setDrawPending(true)
-          toast('Opponent offers a draw')
+          toast('Соперник предлагает ничью')
         }
       }
     })
@@ -210,7 +210,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         setTurnDeadline(new Date(Date.now() + timePerMove * 1000).toISOString())
       }
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Move failed', 'error')
+      toast(err instanceof Error ? err.message : 'Ошибка хода', 'error')
     }
   }, [gameId, timePerMove, toast])
 
@@ -219,7 +219,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       await resignGame(gameId)
       setShowResignConfirm(false)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to resign', 'error')
+      toast(err instanceof Error ? err.message : 'Ошибка при сдаче', 'error')
     }
   }
 
@@ -227,9 +227,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     try {
       await offerDraw(gameId)
       setDrawOffered(true)
-      toast('Draw offer sent')
+      toast('Предложение ничьи отправлено')
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed', 'error')
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
     }
   }
 
@@ -240,7 +240,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       const { game } = await createGame(wager, timePerMove, variant as 'russian' | 'american')
       router.push(`/game/${game.id}`)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to create rematch', 'error')
+      toast(err instanceof Error ? err.message : 'Ошибка создания реванша', 'error')
     }
     setRematchLoading(false)
   }
@@ -250,7 +250,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       await acceptDraw(gameId)
       setDrawPending(false)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed', 'error')
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
     }
   }
 
@@ -288,7 +288,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       <div className="fixed inset-0 bg-bg flex flex-col items-center justify-center gap-4">
         <p className="text-danger">{error}</p>
         <button onClick={() => router.push('/')} className="text-sm text-accent hover:underline">
-          Back to lobby
+          Назад в лобби
         </button>
       </div>
     )
@@ -334,7 +334,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             <button
               onClick={() => setShowMoves(!showMoves)}
               className="text-text-muted hover:text-text transition-colors"
-              title="Moves"
+              title="Ходы"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -351,7 +351,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         {/* Spectator badge */}
         {isSpectator && isPlaying && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-bg-subtle border border-border rounded-full text-xs font-medium text-text-secondary z-10">
-            Spectating
+            Наблюдение
           </div>
         )}
 
@@ -360,9 +360,15 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           <div className="w-full max-w-md space-y-3 mb-3">
             <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
               <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-text-secondary">Waiting for opponent...</p>
+              <p className="text-sm text-text-secondary">Ожидание соперника...</p>
             </div>
             <InviteLink gameId={gameId} />
+            <button
+              onClick={async () => { await cancelGame(gameId); router.push('/') }}
+              className="w-full py-2.5 text-sm font-medium text-danger border border-danger/30 rounded-xl hover:bg-danger/5 transition-colors"
+            >
+              Отменить
+            </button>
           </div>
         )}
 
@@ -390,9 +396,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         {/* Draw offer banner */}
         {drawPending && (
           <div className="flex items-center gap-2 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg w-full max-w-md">
-            <span className="text-xs font-medium text-warning flex-1">Draw offer</span>
-            <button onClick={handleDrawAccept} className="px-2.5 py-1 bg-success text-white text-xs font-medium rounded-md">Accept</button>
-            <button onClick={() => setDrawPending(false)} className="px-2.5 py-1 bg-bg-subtle text-text-secondary text-xs font-medium rounded-md">Decline</button>
+            <span className="text-xs font-medium text-warning flex-1">Предложение ничьи</span>
+            <button onClick={handleDrawAccept} className="px-2.5 py-1 bg-success text-white text-xs font-medium rounded-md">Принять</button>
+            <button onClick={() => setDrawPending(false)} className="px-2.5 py-1 bg-bg-subtle text-text-secondary text-xs font-medium rounded-md">Отклонить</button>
           </div>
         )}
 
@@ -423,7 +429,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               ? 'bg-success/10 text-success'
               : 'bg-bg-subtle text-text-muted'
           }`}>
-            {isMyTurn ? 'Your turn' : "Opponent's turn"}
+            {isMyTurn ? 'Ваш ход' : 'Ход соперника'}
           </div>
         )}
 
@@ -435,20 +441,20 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               disabled={drawOffered}
               className="px-3 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg hover:border-border-hover transition-colors disabled:opacity-50"
             >
-              {drawOffered ? 'Offered' : 'Draw'}
+              {drawOffered ? 'Предложена' : 'Ничья'}
             </button>
             {showResignConfirm ? (
               <div className="flex gap-1.5 items-center">
-                <span className="text-[10px] text-danger">Sure?</span>
-                <button onClick={handleResign} className="px-2.5 py-1.5 text-xs font-medium text-white bg-danger rounded-lg">Yes</button>
-                <button onClick={() => setShowResignConfirm(false)} className="px-2.5 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg">No</button>
+                <span className="text-[10px] text-danger">Точно?</span>
+                <button onClick={handleResign} className="px-2.5 py-1.5 text-xs font-medium text-white bg-danger rounded-lg">Да</button>
+                <button onClick={() => setShowResignConfirm(false)} className="px-2.5 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg">Нет</button>
               </div>
             ) : (
               <button
                 onClick={() => setShowResignConfirm(true)}
                 className="px-3 py-1.5 text-xs font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger/5 transition-colors"
               >
-                Resign
+                Сдаться
               </button>
             )}
           </div>

@@ -100,21 +100,21 @@ export function GameChat({ gameId }: { gameId: string }) {
     <div className="fixed bottom-4 right-4 z-30 w-72 h-80 bg-bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-bg-subtle shrink-0">
-        <span className="text-xs font-semibold text-text">Chat</span>
+        <span className="text-xs font-semibold text-text">Чат</span>
         <button onClick={() => setIsOpen(false)} className="text-text-muted hover:text-text text-sm">&times;</button>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5 text-xs">
         {messages.length === 0 && (
-          <p className="text-text-muted text-center py-4">No messages yet</p>
+          <p className="text-text-muted text-center py-4">Сообщений нет</p>
         )}
         {messages.map(m => {
           const isMe = m.sender === address
           return (
             <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
               <span className="text-[10px] text-text-muted mb-0.5">
-                {isMe ? 'You' : shortAddr(m.sender)}
+                {isMe ? 'Вы' : shortAddr(m.sender)}
               </span>
               <div className={`max-w-[85%] px-2.5 py-1.5 rounded-lg ${
                 isMe ? 'bg-accent text-white' : 'bg-bg-subtle text-text'
@@ -134,7 +134,7 @@ export function GameChat({ gameId }: { gameId: string }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Message..."
+            placeholder="Сообщение..."
             maxLength={200}
             className="flex-1 bg-bg-subtle border border-border rounded-lg px-2 py-1.5 text-xs placeholder:text-text-muted"
           />
@@ -143,12 +143,14 @@ export function GameChat({ gameId }: { gameId: string }) {
             disabled={!input.trim() || sending}
             className="px-2 py-1.5 bg-accent text-white text-xs font-medium rounded-lg disabled:opacity-50"
           >
-            Send
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
           </button>
         </div>
       ) : (
         <div className="p-2 border-t border-border text-center text-[10px] text-text-muted">
-          Connect wallet to chat
+          Подключите кошелёк
         </div>
       )}
     </div>

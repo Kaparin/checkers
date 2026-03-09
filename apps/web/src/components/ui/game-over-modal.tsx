@@ -63,22 +63,22 @@ export function GameOverModal({
 
         {/* Title */}
         <h2 className="text-2xl font-bold">
-          {isDraw ? 'Draw!' : iWon ? 'You Won!' : 'You Lost'}
+          {isDraw ? 'Ничья!' : iWon ? 'Вы победили!' : 'Вы проиграли'}
         </h2>
 
         {/* Stats */}
         <div className="space-y-2 text-sm">
           <div className="flex justify-between px-4">
-            <span className="text-text-secondary">Moves</span>
+            <span className="text-text-secondary">Ходы</span>
             <span className="font-medium">{gameState.moveCount}</span>
           </div>
           <div className="flex justify-between px-4">
-            <span className="text-text-secondary">Wager</span>
+            <span className="text-text-secondary">Ставка</span>
             <span className="font-medium">{wagerDisplay} AXM</span>
           </div>
           {iWon && (
             <div className="flex justify-between px-4">
-              <span className="text-text-secondary">Prize</span>
+              <span className="text-text-secondary">Выигрыш</span>
               <span className="font-medium text-success">+{prizeDisplay} AXM</span>
             </div>
           )}
@@ -91,14 +91,14 @@ export function GameOverModal({
               onClick={onBackToLobby}
               className="flex-1 py-2.5 bg-accent text-white font-medium rounded-xl hover:bg-accent-hover transition-colors"
             >
-              Back to Lobby
+              В лобби
             </button>
             {onRematch && (
               <button
                 onClick={onRematch}
                 className="flex-1 py-2.5 bg-success text-white font-medium rounded-xl hover:bg-success/90 transition-colors"
               >
-                Rematch
+                Реванш
               </button>
             )}
           </div>
@@ -107,14 +107,14 @@ export function GameOverModal({
               onClick={onClose}
               className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-xl hover:border-border-hover transition-colors"
             >
-              Review Board
+              Смотреть доску
             </button>
             {gameId && (
               <a
                 href={`/replay/${gameId}`}
                 className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-xl hover:border-border-hover transition-colors text-center"
               >
-                Replay
+                Повтор
               </a>
             )}
           </div>

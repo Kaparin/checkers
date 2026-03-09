@@ -57,7 +57,7 @@ export default function ReferralsPage() {
       setApplyCode('')
       loadData()
     } catch (err: any) {
-      setApplyError(err.message || 'Failed to apply code')
+      setApplyError(err.message || 'Не удалось применить код')
     } finally {
       setApplying(false)
     }
@@ -66,8 +66,8 @@ export default function ReferralsPage() {
   if (!isConnected) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
-        <h1 className="text-2xl font-bold mb-4">Referral Program</h1>
-        <p className="text-text-secondary">Connect your wallet to access the referral program.</p>
+        <h1 className="text-2xl font-bold mb-4">Реферальная программа</h1>
+        <p className="text-text-secondary">Подключите кошелёк для доступа к реферальной программе.</p>
       </div>
     )
   }
@@ -77,13 +77,13 @@ export default function ReferralsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Referral Program</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Реферальная программа</h1>
 
       {/* Your referral link */}
       <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Your Referral Link</h2>
+        <h2 className="text-lg font-semibold">Ваша реферальная ссылка</h2>
         <p className="text-sm text-text-secondary">
-          Share your link and earn up to 5% of commissions from games played by your referrals (3 levels deep).
+          Поделитесь ссылкой и получайте до 5% от комиссий с игр ваших рефералов (3 уровня).
         </p>
 
         {loading ? (
@@ -99,13 +99,13 @@ export default function ReferralsPage() {
               onClick={handleCopy}
               className="px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors shrink-0"
             >
-              {copied ? 'Copied!' : 'Copy'}
+              {copied ? 'Скопировано!' : 'Копировать'}
             </button>
           </div>
         )}
 
         <div className="text-xs text-text-muted">
-          Code: <span className="font-mono font-semibold text-text">{code || '...'}</span>
+          Код: <span className="font-mono font-semibold text-text">{code || '...'}</span>
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export default function ReferralsPage() {
           ) : (
             <div className="text-2xl font-bold">{stats?.referralCount ?? 0}</div>
           )}
-          <div className="text-xs text-text-secondary mt-1">Referrals</div>
+          <div className="text-xs text-text-secondary mt-1">Рефералы</div>
         </div>
         <div className="bg-bg-card border border-border rounded-2xl p-5 text-center">
           {loading ? (
@@ -125,7 +125,7 @@ export default function ReferralsPage() {
           ) : (
             <div className="text-2xl font-bold text-success">{earned}</div>
           )}
-          <div className="text-xs text-text-secondary mt-1">Earned (AXM)</div>
+          <div className="text-xs text-text-secondary mt-1">Заработано (AXM)</div>
         </div>
         <div className="bg-bg-card border border-border rounded-2xl p-5 text-center">
           {loading ? (
@@ -133,18 +133,18 @@ export default function ReferralsPage() {
           ) : (
             <div className="text-2xl font-bold">{claimed}</div>
           )}
-          <div className="text-xs text-text-secondary mt-1">Claimed (AXM)</div>
+          <div className="text-xs text-text-secondary mt-1">Выведено (AXM)</div>
         </div>
       </div>
 
       {/* Apply referral code */}
       <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Have a Referral Code?</h2>
+        <h2 className="text-lg font-semibold">Есть реферальный код?</h2>
         <div className="flex items-center gap-2">
           <input
             value={applyCode}
             onChange={(e) => { setApplyCode(e.target.value.toUpperCase()); setApplyError(''); setApplySuccess(false) }}
-            placeholder="Enter code..."
+            placeholder="Введите код..."
             maxLength={8}
             className="flex-1 bg-bg-subtle border border-border rounded-lg px-3 py-2.5 text-sm font-mono placeholder:text-text-muted uppercase"
           />
@@ -153,28 +153,28 @@ export default function ReferralsPage() {
             disabled={applying || !applyCode.trim()}
             className="px-4 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors shrink-0 disabled:opacity-50"
           >
-            {applying ? 'Applying...' : 'Apply'}
+            {applying ? 'Применение...' : 'Применить'}
           </button>
         </div>
         {applyError && <p className="text-sm text-danger">{applyError}</p>}
-        {applySuccess && <p className="text-sm text-success">Referral code applied successfully!</p>}
+        {applySuccess && <p className="text-sm text-success">Реферальный код успешно применён!</p>}
       </div>
 
       {/* Reward tiers */}
       <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold">Reward Tiers</h2>
+        <h2 className="text-lg font-semibold">Уровни наград</h2>
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between py-2 border-b border-border">
-            <span className="text-text-secondary">Level 1 (direct referral)</span>
-            <span className="font-semibold">3% of commission</span>
+            <span className="text-text-secondary">Уровень 1 (прямой реферал)</span>
+            <span className="font-semibold">3% от комиссии</span>
           </div>
           <div className="flex items-center justify-between py-2 border-b border-border">
-            <span className="text-text-secondary">Level 2 (referral of referral)</span>
-            <span className="font-semibold">1.5% of commission</span>
+            <span className="text-text-secondary">Уровень 2 (реферал реферала)</span>
+            <span className="font-semibold">1.5% от комиссии</span>
           </div>
           <div className="flex items-center justify-between py-2">
-            <span className="text-text-secondary">Level 3</span>
-            <span className="font-semibold">0.5% of commission</span>
+            <span className="text-text-secondary">Уровень 3</span>
+            <span className="font-semibold">0.5% от комиссии</span>
           </div>
         </div>
       </div>
@@ -183,15 +183,15 @@ export default function ReferralsPage() {
       {stats && stats.recentRewards.length > 0 && (
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
           <div className="p-4 border-b border-border">
-            <h2 className="text-lg font-semibold">Recent Rewards</h2>
+            <h2 className="text-lg font-semibold">Последние награды</h2>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-text-secondary">
-                <th className="text-left p-4 font-medium">From</th>
-                <th className="text-center p-4 font-medium">Level</th>
-                <th className="text-right p-4 font-medium">Amount</th>
-                <th className="text-right p-4 font-medium">Date</th>
+                <th className="text-left p-4 font-medium">От</th>
+                <th className="text-center p-4 font-medium">Уровень</th>
+                <th className="text-right p-4 font-medium">Сумма</th>
+                <th className="text-right p-4 font-medium">Дата</th>
               </tr>
             </thead>
             <tbody>

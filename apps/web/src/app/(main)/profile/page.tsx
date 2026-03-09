@@ -30,8 +30,8 @@ export default function ProfilePage() {
   if (!isConnected) {
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
-        <h1 className="text-2xl font-bold mb-4">Profile</h1>
-        <p className="text-text-secondary">Connect your wallet to view your profile.</p>
+        <h1 className="text-2xl font-bold mb-4">Профиль</h1>
+        <p className="text-text-secondary">Подключите кошелёк для просмотра профиля.</p>
       </div>
     )
   }
@@ -42,7 +42,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Профиль</h1>
 
       {/* Profile card */}
       <div className="bg-bg-card border border-border rounded-2xl p-6">
@@ -67,7 +67,7 @@ export default function ProfilePage() {
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold">{profile?.elo ?? 1200}</div>
-              <div className="text-xs text-text-secondary">ELO Rating</div>
+              <div className="text-xs text-text-secondary">Рейтинг ELO</div>
             </div>
           </div>
         )}
@@ -76,10 +76,10 @@ export default function ProfilePage() {
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Games', value: profile?.gamesPlayed ?? 0 },
-          { label: 'Wins', value: profile?.gamesWon ?? 0, color: 'text-success' },
-          { label: 'Losses', value: profile?.gamesLost ?? 0, color: 'text-danger' },
-          { label: 'Win Rate', value: `${winRate}%` },
+          { label: 'Игры', value: profile?.gamesPlayed ?? 0 },
+          { label: 'Победы', value: profile?.gamesWon ?? 0, color: 'text-success' },
+          { label: 'Поражения', value: profile?.gamesLost ?? 0, color: 'text-danger' },
+          { label: 'Винрейт', value: `${winRate}%` },
         ].map((stat) => (
           <div key={stat.label} className="bg-bg-card border border-border rounded-2xl p-4 text-center">
             {loading ? (
@@ -102,7 +102,7 @@ export default function ProfilePage() {
               {((Number(profile?.totalWon ?? 0)) / 1_000_000).toFixed(2)}
             </div>
           )}
-          <div className="text-xs text-text-secondary mt-1">Total Won (AXM)</div>
+          <div className="text-xs text-text-secondary mt-1">Выиграно (AXM)</div>
         </div>
         <div className="bg-bg-card border border-border rounded-2xl p-5 text-center">
           {loading ? (
@@ -112,7 +112,7 @@ export default function ProfilePage() {
               {((Number(profile?.totalWagered ?? 0)) / 1_000_000).toFixed(2)}
             </div>
           )}
-          <div className="text-xs text-text-secondary mt-1">Total Wagered (AXM)</div>
+          <div className="text-xs text-text-secondary mt-1">Поставлено (AXM)</div>
         </div>
       </div>
 
@@ -120,7 +120,7 @@ export default function ProfilePage() {
       {recentGames.length > 0 && (
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
           <div className="p-4 border-b border-border">
-            <h2 className="text-lg font-semibold">Recent Games</h2>
+            <h2 className="text-lg font-semibold">Последние игры</h2>
           </div>
           <div className="divide-y divide-border">
             {recentGames.map(game => {
@@ -144,7 +144,7 @@ export default function ProfilePage() {
                         }
                       </p>
                       <p className="text-xs text-text-muted">
-                        {(Number(game.wager) / 1_000_000).toFixed(0)} AXM &middot; {game.moveCount} moves
+                        {(Number(game.wager) / 1_000_000).toFixed(0)} AXM &middot; {game.moveCount} ходов
                       </p>
                     </div>
                   </div>
@@ -153,7 +153,7 @@ export default function ProfilePage() {
                       : isWinner ? 'bg-success/10 text-success'
                       : 'bg-danger/10 text-danger'
                   }`}>
-                    {isDraw ? 'Draw' : isWinner ? 'Won' : 'Lost'}
+                    {isDraw ? 'Ничья' : isWinner ? 'Победа' : 'Поражение'}
                   </span>
                 </a>
               )

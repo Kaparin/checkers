@@ -15,7 +15,7 @@ const TYPE_STYLES: Record<string, string> = {
   info: 'bg-accent/10 border-accent/20 text-accent',
   warning: 'bg-warning/10 border-warning/20 text-warning',
   promo: 'bg-success/10 border-success/20 text-success',
-  update: 'bg-purple-500/10 border-purple-500/20 text-purple-500',
+  update: 'bg-accent/10 border-accent/20 text-accent',
 }
 
 export function AnnouncementsBanner() {

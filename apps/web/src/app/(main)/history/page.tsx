@@ -20,7 +20,7 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Game History</h1>
+      <h1 className="text-2xl font-bold tracking-tight">История игр</h1>
 
       {loading ? (
         <div className="space-y-3">
@@ -30,7 +30,7 @@ export default function HistoryPage() {
         </div>
       ) : games.length === 0 ? (
         <div className="border border-dashed border-border rounded-2xl p-12 text-center">
-          <p className="text-text-muted">No finished games yet.</p>
+          <p className="text-text-muted">Завершённых игр пока нет.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -50,14 +50,14 @@ export default function HistoryPage() {
                     !isMyGame ? 'bg-bg-subtle text-text-muted' :
                     iWon ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
                   }`}>
-                    {!isMyGame ? '-' : iWon ? 'W' : 'L'}
+                    {!isMyGame ? '-' : iWon ? 'П' : 'Р'}
                   </div>
                   <div>
                     <p className="text-sm font-medium">
                       {game.blackPlayer?.slice(0, 6)}... vs {game.whitePlayer?.slice(0, 6)}...
                     </p>
                     <p className="text-xs text-text-muted">
-                      {game.moveCount} moves &middot; {wager} AXM
+                      {game.moveCount} ходов &middot; {wager} AXM
                     </p>
                   </div>
                 </div>
@@ -66,17 +66,21 @@ export default function HistoryPage() {
                     <p className="text-xs text-text-muted">
                       {game.finishedAt ? new Date(game.finishedAt).toLocaleDateString() : ''}
                     </p>
-                    <p className="text-xs text-text-muted capitalize">
-                      {game.status.replace('_', ' ')}
+                    <p className="text-xs text-text-muted">
+                      {game.status === 'black_wins' ? 'Победа чёрных' :
+                       game.status === 'white_wins' ? 'Победа белых' :
+                       game.status === 'draw' ? 'Ничья' :
+                       game.status === 'timeout' ? 'Время вышло' :
+                       game.status.replace('_', ' ')}
                     </p>
                   </div>
                   {game.moveCount > 0 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); router.push(`/replay/${game.id}`) }}
                       className="px-2 py-1 text-[10px] font-medium text-accent border border-accent/30 rounded-md hover:bg-accent/5 transition-colors"
-                      title="Replay game"
+                      title="Повтор"
                     >
-                      Replay
+                      Повтор
                     </button>
                   )}
                 </div>
