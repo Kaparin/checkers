@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { CreateGameSchema, MakeMoveSchema, GameListSchema } from '@checkers/shared'
 import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState, calculateElo, calculateEloDraw } from '@checkers/shared'
-import { games, gameMoves, users, txEvents, treasuryLedger } from '@checkers/db'
+import { games, gameMoves, users, txEvents, treasuryLedger, stakingLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
@@ -34,6 +34,12 @@ function recordCommission(db: Db, wager: string, gameId: string, winnerAddress?:
       gameId,
       txHash,
     }).catch(() => {})
+
+    // 2% of commission → LAUNCH staking ledger
+    const stakingAmount = String(Math.floor(Number(commission) * 0.02))
+    if (Number(stakingAmount) > 0) {
+      db.insert(stakingLedger).values({ gameId, amount: stakingAmount }).catch(() => {})
+    }
 
     // Distribute referral rewards from commission (non-blocking)
     if (winnerAddress) {

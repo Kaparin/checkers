@@ -12,6 +12,8 @@ import * as jackpotSchema from './schema/jackpot'
 import * as chatSchema from './schema/chat'
 import * as vipSchema from './schema/vip'
 import * as shopSchema from './schema/shop'
+import * as eventsSchema from './schema/events'
+import * as stakingSchema from './schema/staking'
 
 export const schema = {
   ...usersSchema,
@@ -26,6 +28,8 @@ export const schema = {
   ...chatSchema,
   ...vipSchema,
   ...shopSchema,
+  ...eventsSchema,
+  ...stakingSchema,
 }
 
 export function createDb(databaseUrl: string) {
@@ -47,3 +51,5 @@ export { jackpotTiers, jackpotPools, jackpotContributions } from './schema/jackp
 export { gameMessages, globalChatMessages } from './schema/chat'
 export { vipConfig, vipSubscriptions, vipCustomization } from './schema/vip'
 export { shopPurchases } from './schema/shop'
+export { events, eventParticipants, announcements } from './schema/events'
+export { stakingLedger } from './schema/staking'

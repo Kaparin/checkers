@@ -15,6 +15,7 @@ import { jackpotRoutes } from './routes/jackpot'
 import { chatRoutes } from './routes/chat'
 import { vipRoutes } from './routes/vip'
 import { shopRoutes } from './routes/shop'
+import { eventRoutes } from './routes/events'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
@@ -64,6 +65,7 @@ app.route('/jackpot', jackpotRoutes)
 app.route('/chat', chatRoutes)
 app.route('/vip', vipRoutes)
 app.route('/shop', shopRoutes)
+app.route('/events', eventRoutes)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }))
