@@ -24,7 +24,8 @@ export async function signChallenge(
   // Sign SHA256(challenge)
   const messageHash = new Sha256(new TextEncoder().encode(challenge)).digest()
   const signatureObj = await Secp256k1.createSignature(messageHash, privkey)
-  const signatureBytes = signatureObj.toFixedLength()
+  // toFixedLength() returns 65 bytes (r:32 + s:32 + recovery:1), strip recovery byte
+  const signatureBytes = signatureObj.toFixedLength().slice(0, 64)
 
   return {
     signature: toHex(signatureBytes),
