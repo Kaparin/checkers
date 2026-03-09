@@ -9,10 +9,12 @@ import { authRoutes } from './routes/auth'
 import { gameRoutes } from './routes/games'
 import { userRoutes } from './routes/users'
 import { chainRoutes } from './routes/chain'
+import { adminRoutes } from './routes/admin'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
 import { indexer } from './services/indexer'
+import { ConfigService } from './services/config.service'
 
 const app = new Hono()
 
@@ -48,6 +50,7 @@ app.route('/auth', authRoutes)
 app.route('/games', gameRoutes)
 app.route('/users', userRoutes)
 app.route('/chain', chainRoutes)
+app.route('/admin', adminRoutes)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }))
@@ -71,8 +74,17 @@ setupWebSocket(server as unknown as Server, db)
 // Timeout checker (every 5s)
 startTimeoutChecker(db)
 
-// Initialize blockchain services (non-blocking)
+// Initialize config + blockchain services (non-blocking)
 ;(async () => {
+  try {
+    const configService = new ConfigService(db)
+    await configService.seedDefaults()
+    console.log('[checkers-api] Config loaded')
+  } catch (err) {
+    console.error('[checkers-api] Config init failed:', err)
+  }
+
+
   try {
     await relayer.init()
     if (relayer.isReady) {
