@@ -129,6 +129,34 @@ export interface ReferralStats {
   }[]
 }
 
+// ── Jackpot ─────────────────────────────────────────────────────────
+
+export async function getJackpotPools() {
+  return request<{ pools: JackpotPool[] }>('/jackpot/pools')
+}
+
+export async function getJackpotWinners() {
+  return request<{ winners: JackpotWinner[] }>('/jackpot/winners')
+}
+
+export interface JackpotPool {
+  tier: string
+  name: string
+  targetAmount: string
+  currentAmount: string
+  cycle: number
+  contributionBps: number
+}
+
+export interface JackpotWinner {
+  id: string
+  tier: string
+  cycle: number
+  winnerAddress: string | null
+  winAmount: string | null
+  drawnAt: string | null
+}
+
 // ── Users ────────────────────────────────────────────────────────────
 
 export async function getLeaderboard() {

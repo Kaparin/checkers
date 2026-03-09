@@ -11,6 +11,7 @@ import { WS_EVENTS } from '@checkers/shared'
 import { AXIOME_DENOM } from '@checkers/shared/chain'
 import { relayer } from '../services/relayer'
 import { ReferralService } from '../services/referral.service'
+import { JackpotService } from '../services/jackpot.service'
 import type { GameState, GameVariant } from '@checkers/shared'
 
 /** Log a user action to tx_events (non-blocking) */
@@ -38,6 +39,10 @@ function recordCommission(db: Db, wager: string, gameId: string, winnerAddress?:
     if (winnerAddress) {
       const referralService = new ReferralService(db)
       referralService.distributeRewards(winnerAddress, commission, gameId).catch(() => {})
+
+      // Contribute to jackpot pools (non-blocking)
+      const jackpotService = new JackpotService(db)
+      jackpotService.contribute(gameId, winnerAddress, commission).catch(() => {})
     }
   }
 }

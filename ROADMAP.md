@@ -1,6 +1,6 @@
 # Checkers on Wagers — Full Project Documentation & Roadmap
 
-> Last updated: 2026-03-08
+> Last updated: 2026-03-09
 
 ---
 
@@ -385,17 +385,18 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 - [x] Treasury sweep service (batch offchain_spent collection)
 - [x] Admin route (`/admin`) with auth (ADMIN_SECRET)
 - [x] Admin tabs: Dashboard, Users, Games, Config, Diagnostics, Actions, Transactions
-- [ ] Vault balance management (credit/debit with reason)
+- [x] Vault balance management (credit/debit with reason — admin API)
 - [x] System healing (1-click: fix stuck games, timeout overdue)
 - [x] Stuck game detection (transitional state > 5 minutes)
-- [ ] Background tasks: sweep, stuck recovery
+- [x] Background tasks: stuck recovery (60s), timeout checker (5s)
 
 ### Phase 3 — Referrals & Monetization 🟡
 **Goal**: Referral program, jackpot, commission breakdown.
 
-- [ ] Referral tables: codes, referrals, rewards, balances
-- [ ] Referral service — code generation, L1/L2/L3 reward distribution
-- [ ] Referral UI — link sharing, earnings dashboard
+- [x] Referral tables: codes, referrals, rewards, balances
+- [x] Referral service — code generation, L1/L2/L3 reward distribution
+- [x] Referral UI — link sharing, earnings dashboard, apply code
+- [x] Auto-apply referral from URL (?ref=CODE)
 - [ ] Jackpot tables: tiers, pools, contributions
 - [ ] Jackpot service — contribution tracking, draw logic
 - [ ] Jackpot UI — current pools, winner announcements
@@ -655,9 +656,9 @@ All admin endpoints under `/api/admin/*`, protected by `requireAdmin` middleware
 | Frontend pages | 6/6 | 0 | ✅ Complete |
 | Authz flow | 6/6 | 0 | ✅ Complete |
 | Infrastructure | 3/5 | 2 | 🟡 60% |
-| Treasury & Economy | 4/6 | 2 | 🟡 67% |
+| Treasury & Economy | 6/6 | 0 | ✅ Complete |
 | Admin Panel | 7/15 | 8 | 🟡 47% |
-| Referrals | 0/7 | 7 | ❌ 0% |
+| Referrals | 7/7 | 0 | ✅ Complete |
 | Jackpot | 0/6 | 6 | ❌ 0% |
 | VIP | 0/5 | 5 | ❌ 0% |
 | Shop | 0/6 | 6 | ❌ 0% |
@@ -666,9 +667,9 @@ All admin endpoints under `/api/admin/*`, protected by `requireAdmin` middleware
 | LAUNCH Staking | 0/3 | 3 | ❌ 0% |
 | LAUNCH Staking | 0/3 | 3 | ❌ 0% |
 | UX Polish | 6/12 | 6 | 🟡 50% |
-| Background tasks | 1/6 | 5 | 🟡 17% |
+| Background tasks | 3/6 | 3 | 🟡 50% |
 | Audit & Logging | 2/3 | 1 | 🟡 67% |
 
-**Core gameplay: 100% complete. Economy & features: ~40% complete.**
+**Core gameplay: 100% complete. Economy & referrals: ~55% complete.**
 
-Next priority: finish Phase 1 (Railway deploy + E2E test) → Phase 2 remaining (vault management, background tasks) → Phase 3 (referrals + jackpot).
+Next priority: Phase 3 remaining (jackpot system) → Phase 4 (VIP, shop, social).

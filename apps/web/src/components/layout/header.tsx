@@ -18,6 +18,7 @@ export function Header() {
             <a href="/" className="hover:text-text transition-colors">Play</a>
             <a href="/leaderboard" className="hover:text-text transition-colors">Leaderboard</a>
             <a href="/history" className="hover:text-text transition-colors">History</a>
+            <a href="/jackpot" className="hover:text-text transition-colors">Jackpot</a>
             <a href="/referrals" className="hover:text-text transition-colors">Referrals</a>
           </nav>
 

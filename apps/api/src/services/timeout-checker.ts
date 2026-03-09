@@ -6,6 +6,7 @@ import { WS_EVENTS } from '@checkers/shared'
 import { sql } from 'drizzle-orm'
 import { relayer } from './relayer'
 import { ReferralService } from './referral.service'
+import { JackpotService } from './jackpot.service'
 
 /**
  * Periodically checks for games where the current turn deadline has passed.
@@ -65,10 +66,14 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
             gameId: game.id,
           }).catch(() => {})
 
-          // Distribute referral rewards from commission
           if (winner) {
+            // Distribute referral rewards from commission
             const referralService = new ReferralService(db)
             referralService.distributeRewards(winner, commission, game.id).catch(() => {})
+
+            // Contribute to jackpot pools
+            const jackpotService = new JackpotService(db)
+            jackpotService.contribute(game.id, winner, commission).catch(() => {})
           }
         }
 
