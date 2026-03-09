@@ -31,7 +31,6 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
     const ref = params.get('ref')
     if (ref) {
       localStorage.setItem('pending_referral', ref.toUpperCase())
-      // Clean URL
       const url = new URL(window.location.href)
       url.searchParams.delete('ref')
       window.history.replaceState({}, '', url.pathname)
@@ -90,30 +89,33 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
 
   if (showLocal) {
     return (
-      <div className="flex flex-col items-center gap-6">
-        <div className="flex items-center justify-between w-full max-w-xl">
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex items-center justify-between w-full max-w-[640px]">
           <button
             onClick={() => { setShowLocal(false); setLocalVariant('russian') }}
-            className="text-sm text-text-secondary hover:text-text transition-colors"
+            className="text-sm text-text-secondary hover:text-text transition-colors flex items-center gap-1"
           >
-            &larr; Back to lobby
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Назад
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-bg-card border border-border rounded-lg p-0.5">
             <button
               onClick={() => setLocalVariant('russian')}
-              className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
-                localVariant === 'russian' ? 'bg-accent text-white' : 'bg-bg-subtle text-text-secondary'
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                localVariant === 'russian' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'
               }`}
             >
-              Russian
+              Русские
             </button>
             <button
               onClick={() => setLocalVariant('american')}
-              className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${
-                localVariant === 'american' ? 'bg-accent text-white' : 'bg-bg-subtle text-text-secondary'
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                localVariant === 'american' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text'
               }`}
             >
-              American
+              Американские
             </button>
           </div>
         </div>
@@ -123,108 +125,113 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="max-w-2xl mx-auto space-y-6">
       {/* Hero */}
-      <div className="text-center space-y-3">
-        <h1 className="text-3xl font-bold tracking-tight">Play Checkers</h1>
-        <p className="text-text-secondary">
-          Wager AXM. Beat your opponent. Win double.
+      <div className="text-center space-y-2 pt-2">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          <span className="text-accent">Шашки</span> на ставку
+        </h1>
+        <p className="text-text-secondary text-sm">
+          Поставь AXM. Обыграй соперника. Забери x2.
         </p>
       </div>
 
-      {/* Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Action cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={() => setShowLocal(true)}
-          className="p-6 bg-bg-card border border-border rounded-2xl hover:border-border-hover hover:shadow-md transition-all text-left group"
+          className="p-5 bg-bg-card border border-border rounded-xl hover:border-accent/40 hover:shadow-lg transition-all text-left group"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-board-dark/20 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-board-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 12h8M12 8v8" />
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" d="M15 10l-4 4m0 0l-4-4m4 4V3" />
+                <rect x="3" y="15" width="18" height="6" rx="2" />
               </svg>
             </div>
-            <h3 className="font-semibold text-text group-hover:text-accent transition-colors">Play Locally</h3>
+            <h3 className="font-semibold text-text group-hover:text-accent transition-colors">Локальная игра</h3>
           </div>
-          <p className="text-sm text-text-secondary">
-            Play with a friend on the same device. No wallet needed.
+          <p className="text-xs text-text-muted">
+            Играть вдвоём на одном устройстве, без кошелька.
           </p>
         </button>
 
         <button
           onClick={() => isConnected ? setShowCreate(true) : openConnectModal()}
-          className="p-6 bg-bg-card border border-border rounded-2xl hover:border-border-hover hover:shadow-md transition-all text-left group"
+          className="p-5 bg-bg-card border border-border rounded-xl hover:border-accent/40 hover:shadow-lg transition-all text-left group"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <h3 className="font-semibold text-text group-hover:text-accent transition-colors">
-              {isConnected ? 'Create Game' : 'Connect Wallet'}
+            <h3 className="font-semibold text-text group-hover:text-success transition-colors">
+              {isConnected ? 'Создать игру' : 'Подключить кошелёк'}
             </h3>
           </div>
-          <p className="text-sm text-text-secondary">
-            {isConnected ? 'Set wager amount and wait for an opponent.' : 'Connect your wallet to play online.'}
+          <p className="text-xs text-text-muted">
+            {isConnected ? 'Установи ставку и жди соперника.' : 'Подключи кошелёк для онлайн-игры.'}
           </p>
         </button>
       </div>
 
       {/* Open games */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Open Games</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+            Открытые игры
+          </h2>
           <button
             onClick={loadGames}
-            className="text-xs text-accent hover:underline"
+            className="text-xs text-accent hover:text-accent-hover transition-colors"
           >
-            Refresh
+            Обновить
           </button>
         </div>
 
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {Array.from({ length: 3 }, (_, i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
         ) : openGames.length === 0 ? (
-          <div className="border border-dashed border-border rounded-2xl p-12 text-center">
-            <p className="text-text-muted">No open games. Create one!</p>
+          <div className="border border-dashed border-border rounded-xl p-8 text-center">
+            <p className="text-text-muted text-sm">Нет открытых игр. Создайте первую!</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {openGames.map(game => (
               <div
                 key={game.id}
-                className="flex items-center justify-between p-4 bg-bg-card border border-border rounded-xl hover:border-border-hover transition-colors"
+                className="flex items-center justify-between p-3 sm:p-4 bg-bg-card border border-border rounded-xl hover:border-border-hover transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-piece-black rounded-full" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 bg-piece-black rounded-full border-2 border-[#333] shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium truncate">
                         {game.blackPlayer?.slice(0, 8)}...{game.blackPlayer?.slice(-4)}
                       </p>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                        game.variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-board-dark/10 text-board-dark'
+                        game.variant === 'russian' ? 'bg-accent/15 text-accent' : 'bg-warning/15 text-warning'
                       }`}>
                         {game.variant === 'russian' ? 'RUS' : 'USA'}
                       </span>
                     </div>
-                    <p className="text-xs text-text-muted">
-                      {(Number(game.wager) / 1_000_000).toFixed(0)} AXM &middot; {game.timePerMove}s per move
+                    <p className="text-xs text-text-muted mt-0.5">
+                      {(Number(game.wager) / 1_000_000).toFixed(0)} AXM &middot; {game.timePerMove}с/ход
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => isConnected ? handleJoin(game.id) : openConnectModal()}
                   disabled={game.blackPlayer === address}
-                  className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40 shrink-0 ml-3"
                 >
-                  {game.blackPlayer === address ? 'Your game' : isConnected ? 'Join' : 'Connect'}
+                  {game.blackPlayer === address ? 'Ваша' : isConnected ? 'Играть' : 'Войти'}
                 </button>
               </div>
             ))}
@@ -235,17 +242,20 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
       {/* Active games */}
       {activeGames.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold mb-4">Games in Progress</h2>
-          <div className="space-y-3">
+          <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-warning" />
+            Идут сейчас
+          </h2>
+          <div className="space-y-2">
             {activeGames.map(game => {
               const isMyGame = game.blackPlayer === address || game.whitePlayer === address
               return (
                 <div
                   key={game.id}
                   onClick={() => router.push(`/game/${game.id}`)}
-                  className="flex items-center justify-between p-4 bg-bg-card border border-border rounded-xl transition-colors hover:border-border-hover cursor-pointer"
+                  className="flex items-center justify-between p-3 sm:p-4 bg-bg-card border border-border rounded-xl transition-colors hover:border-border-hover cursor-pointer"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="flex -space-x-2">
                       <div className="w-7 h-7 bg-piece-black rounded-full border-2 border-bg-card" />
                       <div className="w-7 h-7 bg-piece-white rounded-full border-2 border-bg-card" />
@@ -255,16 +265,16 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                         {game.blackPlayer?.slice(0, 6)}... vs {game.whitePlayer?.slice(0, 6)}...
                       </p>
                       <p className="text-xs text-text-muted">
-                        Move {game.moveCount} &middot; {(Number(game.wager) / 1_000_000).toFixed(0)} AXM
+                        Ход {game.moveCount} &middot; {(Number(game.wager) / 1_000_000).toFixed(0)} AXM
                       </p>
                     </div>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                     isMyGame
-                      ? 'bg-success/10 text-success'
-                      : 'bg-accent/10 text-accent'
+                      ? 'bg-success/15 text-success'
+                      : 'bg-accent/15 text-accent'
                   }`}>
-                    {isMyGame ? 'Resume' : 'Watch'}
+                    {isMyGame ? 'Продолжить' : 'Смотреть'}
                   </span>
                 </div>
               )

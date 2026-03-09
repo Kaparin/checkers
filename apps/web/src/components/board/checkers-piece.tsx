@@ -9,55 +9,78 @@ interface CheckersPieceProps {
   isSelected: boolean
   isClickable: boolean
   isDragging?: boolean
+  size?: 'normal' | 'small'
 }
 
-export function CheckersPiece({ color, type, isSelected, isClickable, isDragging }: CheckersPieceProps) {
+export function CheckersPiece({ color, type, isSelected, isClickable, isDragging, size = 'normal' }: CheckersPieceProps) {
   const isBlack = color === 'black'
   const isKing = type === 'king'
+  const sizeClass = size === 'small' ? 'w-[70%]' : 'w-[80%]'
 
   return (
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{
-        scale: isSelected ? 1.1 : 1,
-        opacity: isDragging ? 0.4 : 1,
-        y: isSelected && !isDragging ? -4 : 0,
+        scale: isSelected ? 1.08 : 1,
+        opacity: isDragging ? 0.3 : 1,
+        y: isSelected && !isDragging ? -3 : 0,
       }}
-      exit={{ scale: 0.5, opacity: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+      exit={{ scale: 0.4, opacity: 0 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 28 }}
       className={`
-        relative w-[75%] aspect-square rounded-full
+        relative ${sizeClass} aspect-square rounded-full
         flex items-center justify-center
         ${isClickable ? 'cursor-pointer' : 'cursor-default'}
         ${isSelected ? 'z-10' : ''}
       `}
       style={{
         background: isBlack
-          ? 'radial-gradient(circle at 35% 35%, #3a3a5c, #1a1a2e)'
-          : 'radial-gradient(circle at 35% 35%, #ffffff, #d4d4d4)',
+          ? 'radial-gradient(circle at 38% 32%, #4a4a6e, #222240, #111128)'
+          : 'radial-gradient(circle at 38% 32%, #ffffff, #e8e4de, #ccc8c0)',
         boxShadow: isSelected
-          ? `0 6px 16px rgba(0,0,0,0.4), 0 0 0 3px var(--color-accent)`
-          : '0 3px 8px rgba(0,0,0,0.3)',
-        border: isBlack ? '2px solid #2a2a4e' : '2px solid #c0c0c0',
+          ? `0 6px 20px rgba(0,0,0,0.6), 0 0 0 3px var(--color-accent), 0 0 12px rgba(124,58,237,0.4)`
+          : isBlack
+            ? '0 4px 10px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.08)'
+            : '0 4px 10px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.5)',
+        border: isBlack ? '2px solid #333358' : '2px solid #b8b4ac',
       }}
     >
-      {/* Inner ring for depth */}
+      {/* Top highlight ring */}
       <div
         className="absolute inset-[3px] rounded-full"
         style={{
-          border: isBlack ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.08)',
+          background: isBlack
+            ? 'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.08), transparent 60%)'
+            : 'radial-gradient(circle at 35% 30%, rgba(255,255,255,0.6), transparent 60%)',
+        }}
+      />
+
+      {/* Inner groove for depth */}
+      <div
+        className="absolute inset-[15%] rounded-full"
+        style={{
+          border: isBlack
+            ? '1.5px solid rgba(255,255,255,0.06)'
+            : '1.5px solid rgba(0,0,0,0.06)',
+          background: isBlack
+            ? 'radial-gradient(circle at 40% 35%, rgba(80,80,120,0.3), transparent)'
+            : 'radial-gradient(circle at 40% 35%, rgba(255,255,255,0.3), transparent)',
         }}
       />
 
       {/* King crown */}
       {isKing && (
-        <svg
-          viewBox="0 0 24 24"
-          className={`w-1/2 h-1/2 ${isBlack ? 'text-yellow-400' : 'text-yellow-600'}`}
-          fill="currentColor"
-        >
-          <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5z" />
-        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <svg
+            viewBox="0 0 24 24"
+            className="w-[45%] h-[45%] drop-shadow-sm"
+            fill={isBlack ? '#fbbf24' : '#d97706'}
+            stroke={isBlack ? '#f59e0b' : '#b45309'}
+            strokeWidth={0.5}
+          >
+            <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5z" />
+          </svg>
+        </div>
       )}
     </motion.div>
   )

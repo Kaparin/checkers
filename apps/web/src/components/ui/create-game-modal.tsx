@@ -10,24 +10,22 @@ interface CreateGameModalProps {
 
 const WAGER_PRESETS = [1, 5, 10, 25, 50, 100]
 const TIME_PRESETS = [
-  { label: '30s', value: 30 },
-  { label: '1 min', value: 60 },
-  { label: '3 min', value: 180 },
-  { label: '5 min', value: 300 },
+  { label: '30с', value: 30 },
+  { label: '1 мин', value: 60 },
+  { label: '3 мин', value: 180 },
+  { label: '5 мин', value: 300 },
 ]
 
 const VARIANTS = [
   {
     id: 'russian' as const,
-    name: 'Russian',
-    nameRu: 'Русские',
-    desc: 'Flying kings, backward captures, mid-chain promotion',
+    name: 'Русские',
+    desc: 'Дамки летают, захват назад, превращение в цепи',
   },
   {
     id: 'american' as const,
-    name: 'American',
-    nameRu: 'Американские',
-    desc: 'Standard rules, kings move one square',
+    name: 'Американские',
+    desc: 'Стандартные правила, дамка на 1 клетку',
   },
 ]
 
@@ -51,7 +49,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
       <motion.div
@@ -59,11 +57,11 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className="relative bg-bg-card border border-border rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5"
       >
-        <h2 className="text-xl font-bold text-center">Create Game</h2>
+        <h2 className="text-xl font-bold text-center">Создать игру</h2>
 
         {/* Variant selector */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text-secondary">Rules</label>
+          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Правила</label>
           <div className="grid grid-cols-2 gap-2">
             {VARIANTS.map(v => (
               <button
@@ -72,11 +70,11 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
                 className={`p-3 rounded-xl text-left transition-all border ${
                   variant === v.id
                     ? 'bg-accent/10 border-accent text-accent'
-                    : 'bg-bg-subtle border-transparent text-text-secondary hover:bg-border'
+                    : 'bg-bg-subtle border-border text-text-secondary hover:border-border-hover'
                 }`}
               >
-                <span className="text-sm font-semibold block">{v.nameRu}</span>
-                <span className="text-[11px] leading-tight block mt-0.5 opacity-70">{v.desc}</span>
+                <span className="text-sm font-semibold block">{v.name}</span>
+                <span className="text-[10px] leading-tight block mt-0.5 opacity-60">{v.desc}</span>
               </button>
             ))}
           </div>
@@ -84,19 +82,19 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
 
         {/* Wager */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text-secondary">Wager (COIN)</label>
+          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Ставка (AXM)</label>
           <div className="grid grid-cols-3 gap-2">
             {WAGER_PRESETS.map(w => (
               <button
                 key={w}
                 onClick={() => setWager(w)}
-                className={`py-2 rounded-xl text-sm font-medium transition-all ${
+                className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   wager === w
                     ? 'bg-accent text-white shadow-sm'
-                    : 'bg-bg-subtle text-text-secondary hover:bg-border'
+                    : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated border border-border'
                 }`}
               >
-                {w} COIN
+                {w} AXM
               </button>
             ))}
           </div>
@@ -104,23 +102,23 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
             type="number"
             value={wager}
             onChange={(e) => setWager(Math.max(1, Number(e.target.value)))}
-            className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-xl text-sm focus:outline-none focus:border-accent"
-            placeholder="Custom amount"
+            className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            placeholder="Другая сумма"
           />
         </div>
 
         {/* Time */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text-secondary">Time per move</label>
+          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Время на ход</label>
           <div className="grid grid-cols-4 gap-2">
             {TIME_PRESETS.map(t => (
               <button
                 key={t.value}
                 onClick={() => setTimePerMove(t.value)}
-                className={`py-2 rounded-xl text-sm font-medium transition-all ${
+                className={`py-2 rounded-lg text-sm font-medium transition-all ${
                   timePerMove === t.value
                     ? 'bg-accent text-white shadow-sm'
-                    : 'bg-bg-subtle text-text-secondary hover:bg-border'
+                    : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated border border-border'
                 }`}
               >
                 {t.label}
@@ -133,16 +131,16 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-xl hover:border-border-hover transition-colors"
+            className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-lg hover:border-border-hover transition-colors"
           >
-            Cancel
+            Отмена
           </button>
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="flex-1 py-2.5 bg-accent text-white font-medium rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-50"
+            className="flex-1 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
           >
-            {creating ? 'Creating...' : 'Create'}
+            {creating ? 'Создание...' : 'Создать'}
           </button>
         </div>
       </motion.div>
