@@ -349,9 +349,9 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 |---|---|---|
 | Mobile touch drag-and-drop | 🔴 Critical | Touch-friendly piece movement on small screens |
 | Responsive board sizing | 🔴 Critical | Board fits any screen without scrolling |
-| Spectator mode | 🟡 Medium | Watch live games without playing |
-| Game replay | 🟡 Medium | Step through any completed game move-by-move |
-| Rematch button | 🟡 Medium | Quick rematch after game over |
+| Spectator mode | ✅ | Watch live games from lobby |
+| Game replay | ✅ | Step through any completed game move-by-move |
+| Rematch button | ✅ | Quick rematch after game over |
 | Algebraic notation | 🟡 Medium | Move history in standard notation |
 | PWA | 🟢 Low | Install prompt, offline local games |
 | Telegram bot | 🟢 Low | Notifications, game invites |
@@ -438,7 +438,7 @@ Based on coinflip feature parity analysis. Coinflip has **28 DB tables**, **30 s
 - [x] Shop service — chest tiers, CHECKER crediting
 - [x] Shop UI — chest bundles, purchase flow
 - [x] In-game chat (messages during game)
-- [ ] Global lobby chat with styles/effects
+- [x] Global lobby chat with styles/effects
 - [x] Player profiles (avatar, bio, stats)
 - [ ] P2P CHECKER transfers
 - [ ] Achievements (milestone-based CHECKER rewards)
@@ -678,20 +678,20 @@ All admin endpoints under `/api/admin/*`, protected by `requireAdmin` middleware
 | Indexer | 6/6 | 0 | ✅ Complete |
 | Frontend pages | 6/6 | 0 | ✅ Complete |
 | Authz flow | 6/6 | 0 | ✅ Complete |
-| Infrastructure | 3/5 | 2 | 🟡 60% |
+| Infrastructure | 5/5 | 0 | ✅ Complete |
 | Treasury & Economy | 6/6 | 0 | ✅ Complete |
-| Admin Panel | 7/15 | 8 | 🟡 47% |
+| Admin Panel | 11/15 | 4 | 🟡 73% |
 | Referrals | 7/7 | 0 | ✅ Complete |
 | Jackpot | 6/6 | 0 | ✅ Complete |
 | VIP | 3/5 | 2 | 🟡 60% |
 | Shop | 4/6 | 2 | 🟡 67% |
-| Social | 3/7 | 4 | 🟡 43% |
+| Social | 4/7 | 3 | 🟡 57% |
 | Events | 4/5 | 1 | 🟡 80% |
 | LAUNCH Staking | 1/4 | 3 | 🟡 25% |
-| UX Polish | 6/12 | 6 | 🟡 50% |
+| UX Polish | 9/12 | 3 | 🟡 75% |
 | Background tasks | 3/6 | 3 | 🟡 50% |
 | Audit & Logging | 2/3 | 1 | 🟡 67% |
 
-**Core gameplay: 100% complete. Economy & features: ~75% complete.**
+**Core gameplay: 100% complete. Economy & features: ~80% complete.**
 
-Next priority: Phase 7 polish (spectator mode, replays, i18n) + remaining Phase 4-6 items.
+Remaining: VIP UI/perks, P2P transfers, achievements, staking flush, i18n, PWA, Telegram bot.
