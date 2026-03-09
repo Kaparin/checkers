@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { CreateGameModal } from '@/components/ui/create-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
-import { listGames, createGame, joinGame, type GameListItem } from '@/lib/api'
+import { listGames, createGame, joinGame, applyReferralCode, type GameListItem } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { SkeletonCard } from '@/components/ui/skeleton'
 
@@ -23,6 +23,30 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   const [loading, setLoading] = useState(true)
   const { address, isConnected, openConnectModal } = useWallet()
   const { subscribe } = useWebSocket()
+
+  // Save referral code from URL (?ref=CODE) to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const ref = params.get('ref')
+    if (ref) {
+      localStorage.setItem('pending_referral', ref.toUpperCase())
+      // Clean URL
+      const url = new URL(window.location.href)
+      url.searchParams.delete('ref')
+      window.history.replaceState({}, '', url.pathname)
+    }
+  }, [])
+
+  // Auto-apply pending referral code after wallet connects
+  useEffect(() => {
+    if (!isConnected) return
+    const pending = localStorage.getItem('pending_referral')
+    if (pending) {
+      localStorage.removeItem('pending_referral')
+      applyReferralCode(pending).catch(() => {})
+    }
+  }, [isConnected])
 
   useEffect(() => {
     loadGames()

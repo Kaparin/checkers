@@ -96,6 +96,39 @@ export async function acceptDraw(gameId: string) {
   return request<{ game: GameFull }>(`/games/${gameId}/draw-accept`, { method: 'POST' })
 }
 
+// ── Referrals ───────────────────────────────────────────────────────
+
+export async function getReferralCode() {
+  return request<{ code: string }>('/referrals/code')
+}
+
+export async function applyReferralCode(code: string) {
+  return request<{ success: boolean }>('/referrals/apply', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
+}
+
+export async function getReferralStats() {
+  return request<ReferralStats>('/referrals/stats')
+}
+
+export interface ReferralStats {
+  code: string | null
+  totalEarned: string
+  totalClaimed: string
+  referralCount: number
+  recentRewards: {
+    id: string
+    referrerAddress: string
+    fromPlayerAddress: string
+    level: number
+    amount: string
+    gameId: string
+    createdAt: string
+  }[]
+}
+
 // ── Users ────────────────────────────────────────────────────────────
 
 export async function getLeaderboard() {
