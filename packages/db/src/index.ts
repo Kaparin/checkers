@@ -10,6 +10,8 @@ import * as auditSchema from './schema/audit'
 import * as referralsSchema from './schema/referrals'
 import * as jackpotSchema from './schema/jackpot'
 import * as chatSchema from './schema/chat'
+import * as vipSchema from './schema/vip'
+import * as shopSchema from './schema/shop'
 
 export const schema = {
   ...usersSchema,
@@ -22,6 +24,8 @@ export const schema = {
   ...referralsSchema,
   ...jackpotSchema,
   ...chatSchema,
+  ...vipSchema,
+  ...shopSchema,
 }
 
 export function createDb(databaseUrl: string) {
@@ -41,3 +45,5 @@ export { txEvents, relayerTransactions } from './schema/audit'
 export { referralCodes, referrals, referralRewards, referralBalances } from './schema/referrals'
 export { jackpotTiers, jackpotPools, jackpotContributions } from './schema/jackpot'
 export { gameMessages, globalChatMessages } from './schema/chat'
+export { vipConfig, vipSubscriptions, vipCustomization } from './schema/vip'
+export { shopPurchases } from './schema/shop'

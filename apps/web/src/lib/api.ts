@@ -157,6 +157,51 @@ export interface JackpotWinner {
   drawnAt: string | null
 }
 
+// ── Shop ────────────────────────────────────────────────────────────
+
+export async function getShopItems() {
+  return request<{ items: ShopItem[] }>('/shop/items')
+}
+
+export async function purchaseItem(itemType: string) {
+  return request<{ reward: string }>('/shop/purchase', {
+    method: 'POST',
+    body: JSON.stringify({ itemType }),
+  })
+}
+
+export interface ShopItem {
+  id: string
+  name: string
+  price: string
+  reward: string
+}
+
+// ── VIP ─────────────────────────────────────────────────────────────
+
+export async function getVipTiers() {
+  return request<{ tiers: VipTier[] }>('/vip/tiers')
+}
+
+export async function getVipInfo() {
+  return request<VipInfo>('/vip/me')
+}
+
+export interface VipTier {
+  tier: string
+  name: string
+  priceMonthly: string
+  priceYearly: string
+  checkerMonthly: string
+  enabled: boolean
+}
+
+export interface VipInfo {
+  subscription: { tier: string; expiresAt: string } | null
+  customization: Record<string, string | null> | null
+  tiers: VipTier[]
+}
+
 // ── Users ────────────────────────────────────────────────────────────
 
 export async function getLeaderboard() {

@@ -13,6 +13,8 @@ import { adminRoutes } from './routes/admin'
 import { referralRoutes } from './routes/referrals'
 import { jackpotRoutes } from './routes/jackpot'
 import { chatRoutes } from './routes/chat'
+import { vipRoutes } from './routes/vip'
+import { shopRoutes } from './routes/shop'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
@@ -20,6 +22,7 @@ import { indexer } from './services/indexer'
 import { ConfigService } from './services/config.service'
 import { startStuckRecovery } from './services/stuck-recovery'
 import { JackpotService } from './services/jackpot.service'
+import { VipService } from './services/vip.service'
 
 const app = new Hono()
 
@@ -59,6 +62,8 @@ app.route('/admin', adminRoutes)
 app.route('/referrals', referralRoutes)
 app.route('/jackpot', jackpotRoutes)
 app.route('/chat', chatRoutes)
+app.route('/vip', vipRoutes)
+app.route('/shop', shopRoutes)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }))
@@ -92,6 +97,8 @@ startStuckRecovery(db)
     await configService.seedDefaults()
     const jackpotService = new JackpotService(db)
     await jackpotService.seedDefaults()
+    const vipService = new VipService(db)
+    await vipService.seedDefaults()
     console.log('[checkers-api] Config loaded')
   } catch (err) {
     console.error('[checkers-api] Config init failed:', err)
