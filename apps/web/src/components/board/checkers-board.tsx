@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { playMoveSound, playCaptureSound, playKingSound } from '@/lib/sounds'
 import { useBoardTheme } from '@/hooks/use-board-theme'
@@ -40,6 +40,12 @@ export function CheckersBoard({
   const [validMoves, setValidMoves] = useState<Move[]>([])
   const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null)
 
+  // Touch drag state
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [dragPiece, setDragPiece] = useState<Position | null>(null)
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null)
+  const [dragTarget, setDragTarget] = useState<Position | null>(null)
+
   // Use external state if provided, otherwise internal
   const gameState = externalState ?? internalState
   const setGameState = externalState ? () => {} : setInternalState
@@ -74,6 +80,30 @@ export function CheckersBoard({
     }
   }, [selectedPiece, gameState, isMyTurn])
 
+  const executeMove = useCallback((move: Move) => {
+    if (move.captures.length > 0) {
+      playCaptureSound()
+    } else {
+      playMoveSound()
+    }
+    if (move.promotion) {
+      setTimeout(playKingSound, 200)
+    }
+
+    if (localMode) {
+      const newState = applyMove(gameState, move)
+      setGameState(newState)
+    }
+
+    if (onMove) {
+      onMove(move.from, move.to)
+    }
+
+    setLastMove({ from: move.from, to: move.to })
+    setSelectedPiece(null)
+    setValidMoves([])
+  }, [gameState, localMode, onMove, setGameState])
+
   const handleCellClick = useCallback((row: number, col: number) => {
     if (isGameOver || !isMyTurn) return
 
@@ -83,28 +113,7 @@ export function CheckersBoard({
     if (selectedPiece) {
       const move = validMoves.find(m => m.to.row === row && m.to.col === col)
       if (move) {
-        // Sound effects
-        if (move.captures.length > 0) {
-          playCaptureSound()
-        } else {
-          playMoveSound()
-        }
-        if (move.promotion) {
-          setTimeout(playKingSound, 200)
-        }
-
-        if (localMode) {
-          const newState = applyMove(gameState, move)
-          setGameState(newState)
-        }
-
-        if (onMove) {
-          onMove(move.from, move.to)
-        }
-
-        setLastMove({ from: move.from, to: move.to })
-        setSelectedPiece(null)
-        setValidMoves([])
+        executeMove(move)
         return
       }
     }
@@ -122,19 +131,9 @@ export function CheckersBoard({
 
     // Deselect
     setSelectedPiece(null)
-  }, [gameState, selectedPiece, validMoves, isMyTurn, isGameOver, activeColor, localMode, onMove, setGameState])
+  }, [gameState, selectedPiece, validMoves, isMyTurn, isGameOver, activeColor, executeMove])
 
-  const isValidTarget = (row: number, col: number) =>
-    validMoves.some(m => m.to.row === row && m.to.col === col)
-
-  const isSelected = (row: number, col: number) =>
-    selectedPiece?.row === row && selectedPiece?.col === col
-
-  const isLastMoveCell = (row: number, col: number) =>
-    lastMove && ((lastMove.from.row === row && lastMove.from.col === col) ||
-                 (lastMove.to.row === row && lastMove.to.col === col))
-
-  // Board orientation: row 0 at top for black, row 7 at top for white
+  // Board orientation
   const rows = playerColor === 'white' && !localMode
     ? Array.from({ length: BOARD_SIZE }, (_, i) => i)
     : localMode
@@ -147,12 +146,79 @@ export function CheckersBoard({
       ? Array.from({ length: BOARD_SIZE }, (_, i) => i)
       : Array.from({ length: BOARD_SIZE }, (_, i) => BOARD_SIZE - 1 - i)
 
+  // Convert screen position to board cell
+  const getCellFromPoint = useCallback((clientX: number, clientY: number): Position | null => {
+    if (!boardRef.current) return null
+    const rect = boardRef.current.getBoundingClientRect()
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+    if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) return null
+    const cellSize = rect.width / BOARD_SIZE
+    const colIdx = Math.floor(x / cellSize)
+    const rowIdx = Math.floor(y / cellSize)
+    if (colIdx < 0 || colIdx >= BOARD_SIZE || rowIdx < 0 || rowIdx >= BOARD_SIZE) return null
+    return { row: rows[rowIdx], col: cols[colIdx] }
+  }, [rows, cols])
+
+  // Touch handlers for drag-and-drop
+  const handleTouchStart = useCallback((e: React.TouchEvent, row: number, col: number) => {
+    if (isGameOver || !isMyTurn) return
+    const piece = gameState.board[row][col]
+    if (!piece || piece.color !== activeColor) return
+    const moves = getValidMovesForPiece(gameState, { row, col })
+    if (moves.length === 0) return
+
+    e.preventDefault()
+    setSelectedPiece({ row, col })
+    setDragPiece({ row, col })
+    const touch = e.touches[0]
+    setDragPos({ x: touch.clientX, y: touch.clientY })
+  }, [gameState, isGameOver, isMyTurn, activeColor])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!dragPiece) return
+    e.preventDefault()
+    const touch = e.touches[0]
+    setDragPos({ x: touch.clientX, y: touch.clientY })
+    const target = getCellFromPoint(touch.clientX, touch.clientY)
+    setDragTarget(target)
+  }, [dragPiece, getCellFromPoint])
+
+  const handleTouchEnd = useCallback(() => {
+    if (!dragPiece) return
+
+    if (dragTarget) {
+      const moves = getValidMovesForPiece(gameState, dragPiece)
+      const move = moves.find(m => m.to.row === dragTarget.row && m.to.col === dragTarget.col)
+      if (move) {
+        executeMove(move)
+      }
+    }
+
+    setDragPiece(null)
+    setDragPos(null)
+    setDragTarget(null)
+  }, [dragPiece, dragTarget, gameState, executeMove])
+
+  const isValidTarget = (row: number, col: number) =>
+    validMoves.some(m => m.to.row === row && m.to.col === col)
+
+  const isSelected = (row: number, col: number) =>
+    selectedPiece?.row === row && selectedPiece?.col === col
+
+  const isLastMoveCell = (row: number, col: number) =>
+    lastMove && ((lastMove.from.row === row && lastMove.from.col === col) ||
+                 (lastMove.to.row === row && lastMove.to.col === col))
+
+  const isDragOver = (row: number, col: number) =>
+    dragTarget?.row === row && dragTarget?.col === col
+
   // Captured pieces
   const blackCaptured = 12 - gameState.blackPieces
   const whiteCaptured = 12 - gameState.whitePieces
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-3">
       {/* Game status */}
       {!externalState && (
         <div className="text-center">
@@ -183,26 +249,35 @@ export function CheckersBoard({
       {/* Captured pieces (top = opponent's captured) */}
       <CapturedPieces color="black" count={blackCaptured} />
 
-      {/* Board */}
-      <div className="rounded-xl overflow-hidden shadow-lg border-2 border-board-dark/30 select-none">
-        {rows.map((row) => (
-          <div key={row} className="flex">
-            {cols.map((col) => {
+      {/* Board — responsive: fills available width up to max */}
+      <div
+        ref={boardRef}
+        className="w-full max-w-[576px] aspect-square rounded-xl overflow-hidden shadow-lg border-2 border-board-dark/30 select-none touch-none"
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div className="grid grid-cols-8 grid-rows-8 w-full h-full">
+          {rows.map((row, rowIdx) =>
+            cols.map((col, colIdx) => {
               const isDark = (row + col) % 2 === 1
               const piece = gameState.board[row][col]
               const selected = isSelected(row, col)
               const validTarget = isValidTarget(row, col)
               const wasLastMove = isLastMoveCell(row, col)
+              const isDragging = dragPiece?.row === row && dragPiece?.col === col
+              const isDropTarget = isDragOver(row, col) && validTarget
 
               return (
                 <div
-                  key={`${row}-${col}`}
+                  key={`${rowIdx}-${colIdx}`}
                   onClick={() => handleCellClick(row, col)}
+                  onTouchStart={(e) => handleTouchStart(e, row, col)}
                   className={`
-                    relative w-14 h-14 sm:w-16 sm:h-16 md:w-[72px] md:h-[72px]
-                    flex items-center justify-center
+                    relative flex items-center justify-center
                     transition-colors cursor-pointer
                     ${selected ? 'ring-2 ring-inset ring-accent' : ''}
+                    ${isDropTarget ? 'ring-2 ring-inset ring-success' : ''}
                   `}
                   style={{
                     backgroundColor: wasLastMove
@@ -211,13 +286,17 @@ export function CheckersBoard({
                   }}
                 >
                   {/* Valid move dot */}
-                  {validTarget && !piece && (
-                    <div className="absolute w-4 h-4 bg-success/50 rounded-full" />
+                  {validTarget && !piece && !isDropTarget && (
+                    <div className="absolute w-[25%] h-[25%] bg-success/50 rounded-full" />
+                  )}
+                  {/* Drop target highlight */}
+                  {isDropTarget && !piece && (
+                    <div className="absolute w-[40%] h-[40%] bg-success/60 rounded-full" />
                   )}
 
                   {/* Valid capture ring */}
                   {validTarget && piece && (
-                    <div className="absolute inset-1.5 rounded-full border-[3px] border-danger/60" />
+                    <div className="absolute inset-[8%] rounded-full border-[3px] border-danger/60" />
                   )}
 
                   {/* Piece */}
@@ -229,15 +308,39 @@ export function CheckersBoard({
                         type={piece.type}
                         isSelected={selected}
                         isClickable={piece.color === activeColor && isMyTurn}
+                        isDragging={isDragging}
                       />
                     )}
                   </AnimatePresence>
                 </div>
               )
-            })}
-          </div>
-        ))}
+            })
+          )}
+        </div>
       </div>
+
+      {/* Drag ghost — floating piece following finger */}
+      {dragPiece && dragPos && (() => {
+        const piece = gameState.board[dragPiece.row][dragPiece.col]
+        if (!piece) return null
+        return (
+          <div
+            className="fixed pointer-events-none z-50"
+            style={{
+              left: dragPos.x - 28,
+              top: dragPos.y - 56,
+            }}
+          >
+            <CheckersPiece
+              color={piece.color}
+              type={piece.type}
+              isSelected
+              isClickable={false}
+              isDragging={false}
+            />
+          </div>
+        )
+      })()}
 
       {/* Captured pieces (bottom = my captured) */}
       <CapturedPieces color="white" count={whiteCaptured} />

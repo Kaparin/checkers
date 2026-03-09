@@ -7,6 +7,7 @@ import { CreateGameModal } from '@/components/ui/create-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { listGames, createGame, joinGame, type GameListItem } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
+import { SkeletonCard } from '@/components/ui/skeleton'
 
 interface GameLobbyProps {
   onJoinGame: (gameId: string) => void
@@ -103,7 +104,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
       <div className="text-center space-y-3">
         <h1 className="text-3xl font-bold tracking-tight">Play Checkers</h1>
         <p className="text-text-secondary">
-          Wager COIN tokens. Beat your opponent. Win double.
+          Wager AXM. Beat your opponent. Win double.
         </p>
       </div>
 
@@ -160,8 +161,10 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-3">
+            {Array.from({ length: 3 }, (_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         ) : openGames.length === 0 ? (
           <div className="border border-dashed border-border rounded-2xl p-12 text-center">
@@ -188,7 +191,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                       </span>
                     </div>
                     <p className="text-xs text-text-muted">
-                      {(Number(game.wager) / 1_000_000).toFixed(0)} COIN &middot; {game.timePerMove}s per move
+                      {(Number(game.wager) / 1_000_000).toFixed(0)} AXM &middot; {game.timePerMove}s per move
                     </p>
                   </div>
                 </div>
@@ -230,7 +233,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                         {game.blackPlayer?.slice(0, 6)}... vs {game.whitePlayer?.slice(0, 6)}...
                       </p>
                       <p className="text-xs text-text-muted">
-                        Move {game.moveCount} &middot; {(Number(game.wager) / 1_000_000).toFixed(0)} COIN
+                        Move {game.moveCount} &middot; {(Number(game.wager) / 1_000_000).toFixed(0)} AXM
                       </p>
                     </div>
                   </div>

@@ -8,9 +8,10 @@ interface CheckersPieceProps {
   type: PieceType
   isSelected: boolean
   isClickable: boolean
+  isDragging?: boolean
 }
 
-export function CheckersPiece({ color, type, isSelected, isClickable }: CheckersPieceProps) {
+export function CheckersPiece({ color, type, isSelected, isClickable, isDragging }: CheckersPieceProps) {
   const isBlack = color === 'black'
   const isKing = type === 'king'
 
@@ -19,13 +20,13 @@ export function CheckersPiece({ color, type, isSelected, isClickable }: Checkers
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{
         scale: isSelected ? 1.1 : 1,
-        opacity: 1,
-        y: isSelected ? -4 : 0,
+        opacity: isDragging ? 0.4 : 1,
+        y: isSelected && !isDragging ? -4 : 0,
       }}
       exit={{ scale: 0.5, opacity: 0 }}
       transition={{ type: 'spring', stiffness: 300, damping: 25 }}
       className={`
-        relative w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-full
+        relative w-[75%] aspect-square rounded-full
         flex items-center justify-center
         ${isClickable ? 'cursor-pointer' : 'cursor-default'}
         ${isSelected ? 'z-10' : ''}
@@ -52,7 +53,7 @@ export function CheckersPiece({ color, type, isSelected, isClickable }: Checkers
       {isKing && (
         <svg
           viewBox="0 0 24 24"
-          className={`w-5 h-5 sm:w-6 sm:h-6 ${isBlack ? 'text-yellow-400' : 'text-yellow-600'}`}
+          className={`w-1/2 h-1/2 ${isBlack ? 'text-yellow-400' : 'text-yellow-600'}`}
           fill="currentColor"
         >
           <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5z" />

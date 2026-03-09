@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import { getGame, makeMove, resignGame, offerDraw, acceptDraw } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
+import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
 import type { GameState, PieceColor } from '@checkers/shared'
 
 function PlayerCard({
@@ -241,8 +242,29 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      <div className="fixed inset-0 bg-bg flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg-card shrink-0">
+          <Skeleton className="w-5 h-5 rounded" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="w-2 h-2 rounded-full" />
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4">
+          <div className="flex items-center gap-3 w-full max-w-md">
+            <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-1 w-full rounded-full" />
+            </div>
+          </div>
+          <SkeletonBoard />
+          <div className="flex items-center gap-3 w-full max-w-md">
+            <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-1 w-full rounded-full" />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

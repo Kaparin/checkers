@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { listGames, getStoredAddress, type GameListItem } from '@/lib/api'
+import { SkeletonCard } from '@/components/ui/skeleton'
 
 export default function HistoryPage() {
   const router = useRouter()
@@ -22,8 +23,10 @@ export default function HistoryPage() {
       <h1 className="text-2xl font-bold tracking-tight">Game History</h1>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }, (_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : games.length === 0 ? (
         <div className="border border-dashed border-border rounded-2xl p-12 text-center">
@@ -54,7 +57,7 @@ export default function HistoryPage() {
                       {game.blackPlayer?.slice(0, 6)}... vs {game.whitePlayer?.slice(0, 6)}...
                     </p>
                     <p className="text-xs text-text-muted">
-                      {game.moveCount} moves &middot; {wager} COIN
+                      {game.moveCount} moves &middot; {wager} AXM
                     </p>
                   </div>
                 </div>

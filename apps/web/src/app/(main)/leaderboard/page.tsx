@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getLeaderboard, type UserProfile } from '@/lib/api'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function LeaderboardPage() {
   const [users, setUsers] = useState<UserProfile[]>([])
@@ -31,11 +32,22 @@ export default function LeaderboardPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={5} className="p-8 text-center">
-                  <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                </td>
-              </tr>
+              <>
+                {Array.from({ length: 5 }, (_, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="p-4"><Skeleton className="h-4 w-6" /></td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="w-6 h-6 rounded-full shrink-0" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    </td>
+                    <td className="p-4"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-10 ml-auto" /></td>
+                    <td className="p-4"><Skeleton className="h-4 w-10 ml-auto" /></td>
+                  </tr>
+                ))}
+              </>
             ) : users.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-12 text-center text-text-muted">
