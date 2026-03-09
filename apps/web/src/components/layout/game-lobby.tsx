@@ -242,10 +242,8 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
               return (
                 <div
                   key={game.id}
-                  onClick={() => isMyGame && router.push(`/game/${game.id}`)}
-                  className={`flex items-center justify-between p-4 bg-bg-card border border-border rounded-xl transition-colors ${
-                    isMyGame ? 'hover:border-accent cursor-pointer' : ''
-                  }`}
+                  onClick={() => router.push(`/game/${game.id}`)}
+                  className="flex items-center justify-between p-4 bg-bg-card border border-border rounded-xl transition-colors hover:border-border-hover cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex -space-x-2">
@@ -261,11 +259,13 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                       </p>
                     </div>
                   </div>
-                  {isMyGame && (
-                    <span className="text-xs px-2 py-1 bg-success/10 text-success rounded-full font-medium">
-                      Resume
-                    </span>
-                  )}
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    isMyGame
+                      ? 'bg-success/10 text-success'
+                      : 'bg-accent/10 text-accent'
+                  }`}>
+                    {isMyGame ? 'Resume' : 'Watch'}
+                  </span>
                 </div>
               )
             })}

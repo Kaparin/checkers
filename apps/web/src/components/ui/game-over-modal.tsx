@@ -9,8 +9,10 @@ interface GameOverModalProps {
   playerColor: PieceColor
   wager: string
   gameState: GameState
+  gameId?: string
   onClose: () => void
   onBackToLobby: () => void
+  onRematch?: () => void
 }
 
 export function GameOverModal({
@@ -19,8 +21,10 @@ export function GameOverModal({
   playerColor,
   wager,
   gameState,
+  gameId,
   onClose,
   onBackToLobby,
+  onRematch,
 }: GameOverModalProps) {
   const iWon = winner === myAddress
   const isDraw = gameState.status === 'draw'
@@ -70,30 +74,50 @@ export function GameOverModal({
           </div>
           <div className="flex justify-between px-4">
             <span className="text-text-secondary">Wager</span>
-            <span className="font-medium">{wagerDisplay} COIN</span>
+            <span className="font-medium">{wagerDisplay} AXM</span>
           </div>
           {iWon && (
             <div className="flex justify-between px-4">
               <span className="text-text-secondary">Prize</span>
-              <span className="font-medium text-success">+{prizeDisplay} COIN</span>
+              <span className="font-medium text-success">+{prizeDisplay} AXM</span>
             </div>
           )}
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={onBackToLobby}
-            className="flex-1 py-2.5 bg-accent text-white font-medium rounded-xl hover:bg-accent-hover transition-colors"
-          >
-            Back to Lobby
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-xl hover:border-border-hover transition-colors"
-          >
-            Review Board
-          </button>
+        <div className="flex flex-col gap-2 pt-2">
+          <div className="flex gap-3">
+            <button
+              onClick={onBackToLobby}
+              className="flex-1 py-2.5 bg-accent text-white font-medium rounded-xl hover:bg-accent-hover transition-colors"
+            >
+              Back to Lobby
+            </button>
+            {onRematch && (
+              <button
+                onClick={onRematch}
+                className="flex-1 py-2.5 bg-success text-white font-medium rounded-xl hover:bg-success/90 transition-colors"
+              >
+                Rematch
+              </button>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-xl hover:border-border-hover transition-colors"
+            >
+              Review Board
+            </button>
+            {gameId && (
+              <a
+                href={`/replay/${gameId}`}
+                className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-xl hover:border-border-hover transition-colors text-center"
+              >
+                Replay
+              </a>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>

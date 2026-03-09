@@ -8,7 +8,7 @@ import { MoveHistory } from '@/components/ui/move-history'
 import { InviteLink } from '@/components/ui/invite-link'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw, createGame } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
@@ -116,6 +116,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [showResignConfirm, setShowResignConfirm] = useState(false)
   const [showMoves, setShowMoves] = useState(false)
   const [variant, setVariant] = useState<string>('russian')
+  const [rematchLoading, setRematchLoading] = useState(false)
 
   const { subscribe, connected } = useWebSocket(gameId)
   const { address } = useWallet()
@@ -230,6 +231,18 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed', 'error')
     }
+  }
+
+  const handleRematch = async () => {
+    if (rematchLoading) return
+    setRematchLoading(true)
+    try {
+      const { game } = await createGame(wager, timePerMove, variant as 'russian' | 'american')
+      router.push(`/game/${game.id}`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to create rematch', 'error')
+    }
+    setRematchLoading(false)
   }
 
   const handleDrawAccept = async () => {
@@ -463,8 +476,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           playerColor={playerColor}
           wager={wager}
           gameState={gameState}
+          gameId={gameId}
           onClose={() => setShowGameOver(false)}
           onBackToLobby={() => router.push('/')}
+          onRematch={isPlayer ? handleRematch : undefined}
         />
       )}
     </div>
