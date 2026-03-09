@@ -10,6 +10,7 @@ import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
 import { AXIOME_DENOM } from '@checkers/shared/chain'
 import { relayer } from '../services/relayer'
+import { ReferralService } from '../services/referral.service'
 import type { GameState, GameVariant } from '@checkers/shared'
 
 /** Log a user action to tx_events (non-blocking) */
@@ -22,8 +23,8 @@ function logEvent(db: Db, action: string, address?: string, gameId?: string, det
   }).catch(() => {})
 }
 
-/** Record commission from a resolved game */
-function recordCommission(db: Db, wager: string, gameId: string, txHash?: string) {
+/** Record commission from a resolved game + distribute referral rewards */
+function recordCommission(db: Db, wager: string, gameId: string, winnerAddress?: string, txHash?: string) {
   const commission = String(Math.floor(Number(wager) * 2 * 0.1)) // 10% of total pot
   if (Number(commission) > 0) {
     db.insert(treasuryLedger).values({
@@ -32,6 +33,12 @@ function recordCommission(db: Db, wager: string, gameId: string, txHash?: string
       gameId,
       txHash,
     }).catch(() => {})
+
+    // Distribute referral rewards from commission (non-blocking)
+    if (winnerAddress) {
+      const referralService = new ReferralService(db)
+      referralService.distributeRewards(winnerAddress, commission, gameId).catch(() => {})
+    }
   }
 }
 
@@ -267,8 +274,8 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
       }).where(eq(users.address, loser))
     }
 
-    // Record commission (10% of total pot)
-    recordCommission(db, game.wager, gameId)
+    // Record commission (10% of total pot) + referral rewards
+    recordCommission(db, game.wager, gameId, winner)
 
     // Background: resolve on-chain (distribute winnings)
     if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
@@ -359,7 +366,7 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
 
   // ELO update
   if (winner) {
-    recordCommission(db, game.wager, gameId)
+    recordCommission(db, game.wager, gameId, winner)
 
     const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
     const [loserUser] = await db.select().from(users).where(eq(users.address, address)).limit(1)

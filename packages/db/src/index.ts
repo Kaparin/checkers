@@ -7,6 +7,7 @@ import * as platformConfigSchema from './schema/platform-config'
 import * as vaultSchema from './schema/vault'
 import * as treasurySchema from './schema/treasury'
 import * as auditSchema from './schema/audit'
+import * as referralsSchema from './schema/referrals'
 
 export const schema = {
   ...usersSchema,
@@ -16,6 +17,7 @@ export const schema = {
   ...vaultSchema,
   ...treasurySchema,
   ...auditSchema,
+  ...referralsSchema,
 }
 
 export function createDb(databaseUrl: string) {
@@ -32,3 +34,4 @@ export { platformConfig } from './schema/platform-config'
 export { vaultBalances, vaultTransactions } from './schema/vault'
 export { treasuryLedger } from './schema/treasury'
 export { txEvents, relayerTransactions } from './schema/audit'
+export { referralCodes, referrals, referralRewards, referralBalances } from './schema/referrals'

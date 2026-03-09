@@ -5,6 +5,7 @@ import { broadcastToGame } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
 import { sql } from 'drizzle-orm'
 import { relayer } from './relayer'
+import { ReferralService } from './referral.service'
 
 /**
  * Periodically checks for games where the current turn deadline has passed.
@@ -55,7 +56,7 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
           }).where(eq(users.address, loser))
         }
 
-        // Record commission
+        // Record commission + referral rewards
         const commission = String(Math.floor(Number(game.wager) * 2 * 0.1))
         if (Number(commission) > 0) {
           db.insert(treasuryLedger).values({
@@ -63,6 +64,12 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
             amount: commission,
             gameId: game.id,
           }).catch(() => {})
+
+          // Distribute referral rewards from commission
+          if (winner) {
+            const referralService = new ReferralService(db)
+            referralService.distributeRewards(winner, commission, game.id).catch(() => {})
+          }
         }
 
         // Log event

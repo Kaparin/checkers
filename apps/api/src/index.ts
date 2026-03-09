@@ -10,6 +10,7 @@ import { gameRoutes } from './routes/games'
 import { userRoutes } from './routes/users'
 import { chainRoutes } from './routes/chain'
 import { adminRoutes } from './routes/admin'
+import { referralRoutes } from './routes/referrals'
 import { setupWebSocket } from './ws/handler'
 import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
@@ -52,6 +53,7 @@ app.route('/games', gameRoutes)
 app.route('/users', userRoutes)
 app.route('/chain', chainRoutes)
 app.route('/admin', adminRoutes)
+app.route('/referrals', referralRoutes)
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: Date.now() }))
