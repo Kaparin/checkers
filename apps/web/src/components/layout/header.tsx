@@ -13,7 +13,8 @@ const NAV_LINKS = [
 ]
 
 export function Header() {
-  const { address, isConnected, openConnectModal, disconnect } = useWallet()
+  const { address, isConnected, openConnectModal, disconnect, savedWallets } = useWallet()
+  const hasMultipleWallets = savedWallets.length > 1
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -42,10 +43,21 @@ export function Header() {
               >
                 {address!.slice(0, 8)}...{address!.slice(-4)}
               </a>
+              {hasMultipleWallets && (
+                <button
+                  onClick={openConnectModal}
+                  className="text-xs text-accent hover:text-accent-hover transition-colors"
+                  title="Переключить кошелёк"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={disconnect}
                 className="text-xs text-text-muted hover:text-danger transition-colors"
-                title="Disconnect"
+                title="Отключить"
               >
                 &times;
               </button>
@@ -96,9 +108,19 @@ export function Header() {
                 <a href="/profile" onClick={() => setMenuOpen(false)} className="text-xs font-mono text-text-secondary">
                   {address!.slice(0, 10)}...{address!.slice(-4)}
                 </a>
-                <button onClick={disconnect} className="text-xs text-danger">
-                  Disconnect
-                </button>
+                <div className="flex items-center gap-3">
+                  {hasMultipleWallets && (
+                    <button
+                      onClick={() => { openConnectModal(); setMenuOpen(false) }}
+                      className="text-xs text-accent"
+                    >
+                      Сменить
+                    </button>
+                  )}
+                  <button onClick={disconnect} className="text-xs text-danger">
+                    Выйти
+                  </button>
+                </div>
               </div>
             ) : (
               <button
