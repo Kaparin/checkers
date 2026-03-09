@@ -5,12 +5,16 @@ import { usePathname, useRouter } from 'next/navigation'
 import { getAdminSecret, setAdminSecret } from '@/lib/admin-api'
 
 const NAV_ITEMS = [
-  { href: '/admin', label: 'Dashboard', icon: '~' },
-  { href: '/admin/users', label: 'Users', icon: 'U' },
-  { href: '/admin/games', label: 'Games', icon: 'G' },
-  { href: '/admin/config', label: 'Config', icon: 'C' },
-  { href: '/admin/diagnostics', label: 'Diagnostics', icon: 'D' },
-  { href: '/admin/transactions', label: 'Transactions', icon: 'T' },
+  { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/users', label: 'Users' },
+  { href: '/admin/games', label: 'Games' },
+  { href: '/admin/config', label: 'Config' },
+  { href: '/admin/diagnostics', label: 'Diagnostics' },
+  { href: '/admin/transactions', label: 'Transactions' },
+  { href: '/admin/referrals', label: 'Referrals' },
+  { href: '/admin/jackpot', label: 'Jackpot' },
+  { href: '/admin/events', label: 'Events' },
+  { href: '/admin/announcements', label: 'Announcements' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

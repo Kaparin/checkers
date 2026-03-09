@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq, sql, desc, count, and, lt, gt, inArray } from 'drizzle-orm'
 import { requireAdmin } from '../middleware/admin'
-import { games, users, vaultBalances, treasuryLedger, relayerTransactions, txEvents, platformConfig } from '@checkers/db'
+import { games, users, vaultBalances, treasuryLedger, relayerTransactions, txEvents, platformConfig, events, announcements } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { ConfigService } from '../services/config.service'
 import { TreasuryService } from '../services/treasury.service'
@@ -326,4 +326,65 @@ adminRoutes.get('/transactions', async (c) => {
   const total = await db.select({ count: count() }).from(relayerTransactions)
 
   return c.json({ transactions: txs, total: total[0]?.count ?? 0 })
+})
+
+// ─── Events ─────────────────────────────────────────────
+
+adminRoutes.post('/events', async (c) => {
+  const db = c.get('db' as never) as Db
+  const body = await c.req.json<{
+    type: string
+    title: string
+    description?: string
+    metric?: string
+    prizePool?: string
+    prizeType?: string
+    startsAt: string
+    endsAt: string
+  }>()
+
+  if (!body.title || !body.startsAt || !body.endsAt) {
+    return c.json({ error: 'title, startsAt, endsAt required' }, 400)
+  }
+
+  const [event] = await db.insert(events).values({
+    type: body.type as any,
+    title: body.title,
+    description: body.description || null,
+    metric: body.metric || null,
+    prizePool: body.prizePool || '0',
+    prizeType: (body.prizeType || 'checker') as any,
+    startsAt: new Date(body.startsAt),
+    endsAt: new Date(body.endsAt),
+    status: 'upcoming',
+  }).returning()
+
+  return c.json({ event }, 201)
+})
+
+// ─── Announcements ──────────────────────────────────────
+
+adminRoutes.post('/announcements', async (c) => {
+  const db = c.get('db' as never) as Db
+  const body = await c.req.json<{ title: string; body: string; type?: string }>()
+
+  if (!body.title || !body.body) {
+    return c.json({ error: 'title and body required' }, 400)
+  }
+
+  const [ann] = await db.insert(announcements).values({
+    title: body.title,
+    body: body.body,
+    type: (body.type || 'info') as any,
+  }).returning()
+
+  return c.json({ announcement: ann }, 201)
+})
+
+adminRoutes.delete('/announcements/:id', async (c) => {
+  const db = c.get('db' as never) as Db
+  const id = c.req.param('id') as string
+
+  await db.update(announcements).set({ active: false }).where(eq(announcements.id, id))
+  return c.json({ success: true })
 })
