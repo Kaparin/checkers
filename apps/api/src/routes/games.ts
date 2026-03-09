@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { CreateGameSchema, MakeMoveSchema, GameListSchema } from '@checkers/shared'
 import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState, calculateElo, calculateEloDraw } from '@checkers/shared'
-import { games, gameMoves, users } from '@checkers/db'
+import { games, gameMoves, users, txEvents, treasuryLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
@@ -11,6 +11,29 @@ import { WS_EVENTS } from '@checkers/shared'
 import { AXIOME_DENOM } from '@checkers/shared/chain'
 import { relayer } from '../services/relayer'
 import type { GameState, GameVariant } from '@checkers/shared'
+
+/** Log a user action to tx_events (non-blocking) */
+function logEvent(db: Db, action: string, address?: string, gameId?: string, details?: string) {
+  db.insert(txEvents).values({
+    action: action as any,
+    address,
+    gameId,
+    details,
+  }).catch(() => {})
+}
+
+/** Record commission from a resolved game */
+function recordCommission(db: Db, wager: string, gameId: string, txHash?: string) {
+  const commission = String(Math.floor(Number(wager) * 2 * 0.1)) // 10% of total pot
+  if (Number(commission) > 0) {
+    db.insert(treasuryLedger).values({
+      source: 'game_commission',
+      amount: commission,
+      gameId,
+      txHash,
+    }).catch(() => {})
+  }
+}
 
 export const gameRoutes = new Hono()
 
@@ -92,6 +115,7 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
   }).returning()
 
   broadcastToLobby({ type: WS_EVENTS.GAME_CREATED, game: { id: game.id, wager, variant, blackPlayer: address, timePerMove } })
+  logEvent(db, 'create_game', address, game.id, `wager=${wager} variant=${variant}`)
 
   // Background: lock wager on-chain
   if (relayer.isReady && wager !== '0') {
@@ -138,6 +162,7 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
 
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_JOINED, game: updated })
   broadcastToLobby({ type: WS_EVENTS.GAME_JOINED, gameId })
+  logEvent(db, 'join_game', address, gameId)
 
   // Background: lock opponent wager on-chain
   if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
@@ -242,6 +267,9 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
       }).where(eq(users.address, loser))
     }
 
+    // Record commission (10% of total pot)
+    recordCommission(db, game.wager, gameId)
+
     // Background: resolve on-chain (distribute winnings)
     if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
       fireAndForget(`resolve:${gameId}`, async () => {
@@ -291,6 +319,7 @@ gameRoutes.post('/:id/cancel', requireAuth, async (c) => {
   }).where(eq(games.id, gameId)).returning()
 
   broadcastToLobby({ type: WS_EVENTS.GAME_CANCELED, gameId })
+  logEvent(db, 'cancel_game', address, gameId)
 
   // Background: refund wager on-chain
   if (relayer.isReady && game.onChainGameId) {
@@ -326,8 +355,12 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
     currentTurnDeadline: null,
   }).where(eq(games.id, gameId)).returning()
 
+  logEvent(db, 'resign', address, gameId)
+
   // ELO update
   if (winner) {
+    recordCommission(db, game.wager, gameId)
+
     const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
     const [loserUser] = await db.select().from(users).where(eq(users.address, address)).limit(1)
     if (winnerUser && loserUser) {

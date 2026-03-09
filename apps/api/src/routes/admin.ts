@@ -86,6 +86,46 @@ adminRoutes.get('/users/:address', async (c) => {
   return c.json({ user, vault: vault ?? null, games: userGames })
 })
 
+// Credit/debit user vault balance
+adminRoutes.post('/users/:address/balance', async (c) => {
+  const db = c.get('db' as never) as Db
+  const address = c.req.param('address')
+  const body = await c.req.json<{ amount: string; type: 'credit' | 'debit'; reason: string }>()
+
+  if (!body.amount || !body.type || !body.reason) {
+    return c.json({ error: 'amount, type, and reason are required' }, 400)
+  }
+
+  const amt = BigInt(body.amount)
+  if (amt <= 0n) return c.json({ error: 'amount must be positive' }, 400)
+
+  // Upsert vault balance
+  const [existing] = await db.select().from(vaultBalances).where(eq(vaultBalances.address, address))
+  const current = BigInt(existing?.available ?? '0')
+  const newBalance = body.type === 'credit' ? current + amt : current - amt
+  if (newBalance < 0n) return c.json({ error: 'Insufficient balance' }, 400)
+
+  if (existing) {
+    await db.update(vaultBalances).set({
+      available: newBalance.toString(),
+      updatedAt: new Date(),
+    }).where(eq(vaultBalances.address, address))
+  } else {
+    await db.insert(vaultBalances).values({
+      address,
+      available: newBalance.toString(),
+    })
+  }
+
+  await db.insert(txEvents).values({
+    action: 'admin_action',
+    address,
+    details: `${body.type} ${body.amount} uaxm: ${body.reason}`,
+  })
+
+  return c.json({ success: true, available: newBalance.toString() })
+})
+
 // ─── Games ───────────────────────────────────────────────
 
 adminRoutes.get('/games', async (c) => {
