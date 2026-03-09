@@ -15,6 +15,7 @@ import { startTimeoutChecker } from './services/timeout-checker'
 import { relayer } from './services/relayer'
 import { indexer } from './services/indexer'
 import { ConfigService } from './services/config.service'
+import { startStuckRecovery } from './services/stuck-recovery'
 
 const app = new Hono()
 
@@ -73,6 +74,9 @@ setupWebSocket(server as unknown as Server, db)
 
 // Timeout checker (every 5s)
 startTimeoutChecker(db)
+
+// Stuck game recovery (every 60s)
+startStuckRecovery(db)
 
 // Initialize config + blockchain services (non-blocking)
 ;(async () => {

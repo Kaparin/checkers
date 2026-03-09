@@ -1,5 +1,5 @@
 import { lt, eq } from 'drizzle-orm'
-import { games, users } from '@checkers/db'
+import { games, users, txEvents, treasuryLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { broadcastToGame } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
@@ -54,6 +54,24 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
             gamesLost: sql`games_lost + 1`,
           }).where(eq(users.address, loser))
         }
+
+        // Record commission
+        const commission = String(Math.floor(Number(game.wager) * 2 * 0.1))
+        if (Number(commission) > 0) {
+          db.insert(treasuryLedger).values({
+            source: 'game_commission',
+            amount: commission,
+            gameId: game.id,
+          }).catch(() => {})
+        }
+
+        // Log event
+        db.insert(txEvents).values({
+          action: 'claim_timeout',
+          address: loser,
+          gameId: game.id,
+          details: `${loser} timed out, ${winner} wins`,
+        }).catch(() => {})
 
         broadcastToGame(game.id, {
           type: WS_EVENTS.GAME_TIMEOUT,
