@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head:*)",
+      "Bash(git:*)",
+      "Bash(wc:*)",
+      "Bash(npx turbo:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm run:*)",
+      "Bash(source .env:*)",
+      "Bash(export:*)",
+      "WebFetch(domain:checkers-production-2a03.up.railway.app)",
+      "WebFetch(domain:checkers-web.vercel.app)",
+      "Bash(DATABASE_URL=\"postgres://neondb_owner:npg_o3xOzatUqs7l@ep-hidden-mud-a4xhl32c-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require\" npx drizzle-kit:*)",
+      "Bash(ls:*)",
+      "Bash(openssl rand:*)",
+      "Bash(git add:*)",
+      "Bash(find /e/Work/checkers/apps/web/src -type f -name \"*.tsx\" | xargs grep -l \"isSpectator\\\\|spectator\" | head -10)",
+      "Bash(find /e/Work/checkers -name \"*ws*\" -o -name \"*websocket*\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"spectator\\\\|Spectator\\\\|isSpectator\" /e/Work/checkers/apps/web/src --include=\"*.tsx\" --include=\"*.ts\" 2>/dev/null | head -20)",
+      "Bash(cd E:/Work/checkers && pnpm db:push 2>&1)",
+      "Bash(cd E:/Work/checkers && npx drizzle-kit generate --config packages/db/drizzle.config.ts 2>&1 | tail -20)",
+      "Bash(cd E:/Work/checkers/packages/db && npx drizzle-kit generate 2>&1 | tail -20)",
+      "Bash(cd E:/Work/checkers/packages/db && npx drizzle-kit push --force 2>&1 | tail -20)",
+      "Bash(cd \"E:/Work/checkers\" && npx tsx check-columns.ts)"
+    ]
+  },
+  "outputStyle": "default"
+}
