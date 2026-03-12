@@ -274,7 +274,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                       ? 'bg-success/15 text-success'
                       : 'bg-accent/15 text-accent'
                   }`}>
-                    {isMyGame ? 'Продолжить' : 'Смотреть'}
+                    {isMyGame ? 'Продолжить' : 'Наблюдать'}
                   </span>
                 </div>
               )

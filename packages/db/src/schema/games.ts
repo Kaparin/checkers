@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, uuid, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, integer, uuid, jsonb, boolean } from 'drizzle-orm/pg-core'
 import { users } from './users'
 
 export const games = pgTable('games', {
@@ -7,8 +7,10 @@ export const games = pgTable('games', {
   whitePlayer: text('white_player').references(() => users.address),
   winner: text('winner').references(() => users.address),
   status: text('status', {
-    enum: ['waiting', 'playing', 'black_wins', 'white_wins', 'draw', 'canceled', 'timeout'],
+    enum: ['waiting', 'ready_check', 'playing', 'black_wins', 'white_wins', 'draw', 'canceled', 'timeout'],
   }).notNull().default('waiting'),
+  blackReady: boolean('black_ready').notNull().default(false),
+  whiteReady: boolean('white_ready').notNull().default(false),
   variant: text('variant', {
     enum: ['russian', 'american'],
   }).notNull().default('russian'),

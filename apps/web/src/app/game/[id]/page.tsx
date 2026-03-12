@@ -1,101 +1,23 @@
 'use client'
 
-import { use, useState, useEffect, useCallback } from 'react'
+import { use, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { GameOverModal } from '@/components/ui/game-over-modal'
 import { MoveHistory } from '@/components/ui/move-history'
 import { InviteLink } from '@/components/ui/invite-link'
+import { AvatarVsBar } from '@/components/ui/avatar-vs-bar'
+import { GameStartSplash } from '@/components/ui/game-start-splash'
+import { LeaveGameModal } from '@/components/ui/leave-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
+import { useNavigationBlock } from '@/hooks/use-navigation-block'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw, createGame, cancelGame } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, confirmReady, offerRematch, acceptRematch, declineRematch } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
 import { GameChat } from '@/components/ui/game-chat'
 import type { GameState, PieceColor } from '@checkers/shared'
-
-function PlayerCard({
-  address,
-  pieceColor,
-  isCurrentTurn,
-  deadline,
-  timePerMove,
-  isTop,
-}: {
-  address: string | null
-  pieceColor: PieceColor
-  isCurrentTurn: boolean
-  deadline: string | null
-  timePerMove: number
-  isTop: boolean
-}) {
-  const [secondsLeft, setSecondsLeft] = useState(timePerMove)
-
-  useEffect(() => {
-    if (!deadline || !isCurrentTurn) {
-      setSecondsLeft(timePerMove)
-      return
-    }
-    const target = new Date(deadline).getTime()
-    function tick() {
-      const diff = Math.max(0, Math.ceil((target - Date.now()) / 1000))
-      setSecondsLeft(diff)
-    }
-    tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
-  }, [deadline, isCurrentTurn, timePerMove])
-
-  const minutes = Math.floor(secondsLeft / 60)
-  const seconds = secondsLeft % 60
-  const isLow = isCurrentTurn && secondsLeft <= 10
-  const pct = Math.max(0, (secondsLeft / timePerMove) * 100)
-
-  const short = address
-    ? `${address.slice(0, 8)}...${address.slice(-4)}`
-    : 'Ожидание...'
-
-  return (
-    <div className={`flex items-center gap-3 w-full max-w-md ${isTop ? '' : ''}`}>
-      {/* Avatar */}
-      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
-        pieceColor === 'black'
-          ? 'bg-piece-black'
-          : 'bg-piece-white border border-border'
-      }`}>
-        <span className={`text-sm font-bold ${
-          pieceColor === 'black' ? 'text-white' : 'text-piece-black'
-        }`}>
-          {address ? address[3].toUpperCase() : '?'}
-        </span>
-      </div>
-
-      {/* Name + timer */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm font-medium text-text truncate">
-            {isTop ? short : `Вы (${short})`}
-          </span>
-          <span className={`text-sm font-mono font-semibold tabular-nums ${
-            isLow ? 'text-danger animate-pulse' : isCurrentTurn ? 'text-text' : 'text-text-muted'
-          }`}>
-            {minutes}:{seconds.toString().padStart(2, '0')}
-          </span>
-        </div>
-        {/* Timer bar */}
-        <div className="h-1 bg-bg-subtle rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              isLow ? 'bg-danger' : isCurrentTurn ? 'bg-accent' : 'bg-text-muted/30'
-            }`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: gameId } = use(params)
@@ -116,6 +38,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [showResignConfirm, setShowResignConfirm] = useState(false)
   const [showMoves, setShowMoves] = useState(false)
   const [variant, setVariant] = useState<string>('russian')
+
+  // Track actual player addresses for correct isSpectator check
+  const [blackPlayer, setBlackPlayer] = useState<string | null>(null)
+  const [whitePlayer, setWhitePlayer] = useState<string | null>(null)
+
+  // Feature 4: Ready check
+  const [isReadyCheck, setIsReadyCheck] = useState(false)
+  const [myReady, setMyReady] = useState(false)
+  const [opponentReady, setOpponentReady] = useState(false)
+  const [readyLoading, setReadyLoading] = useState(false)
+
+  // Feature 5: Game start splash
+  const [showSplash, setShowSplash] = useState(false)
+
+  // Feature 8: Rematch with confirmation
+  const [rematchOffered, setRematchOffered] = useState(false)
+  const [rematchPending, setRematchPending] = useState(false)
   const [rematchLoading, setRematchLoading] = useState(false)
 
   const { subscribe, connected } = useWebSocket(gameId)
@@ -131,12 +70,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         setTurnDeadline(game.currentTurnDeadline)
         setVariant(game.variant || 'russian')
 
+        // Feature 6: recalculate playerColor from server (may have swapped)
+        setBlackPlayer(game.blackPlayer)
+        setWhitePlayer(game.whitePlayer)
         if (address === game.blackPlayer) {
           setPlayerColor('black')
           setOpponent(game.whitePlayer)
         } else {
           setPlayerColor('white')
           setOpponent(game.blackPlayer)
+        }
+
+        // Feature 4: Ready check state
+        if (game.status === 'ready_check') {
+          setIsReadyCheck(true)
+          const amBlack = address === game.blackPlayer
+          setMyReady(amBlack ? game.blackReady : game.whiteReady)
+          setOpponentReady(amBlack ? game.whiteReady : game.blackReady)
         }
 
         const stateStr = typeof game.gameState === 'string'
@@ -166,7 +116,12 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       if (msg.type === 'game:move' || msg.type === 'game:over') {
         const gs = msg.gameState as GameState
         if (gs) setGameState(prev => ({ ...gs, variant: gs.variant || prev?.variant || 'russian' }))
+        // Update deadline on opponent's move
+        if (msg.type === 'game:move') {
+          setTurnDeadline(new Date(Date.now() + timePerMove * 1000).toISOString())
+        }
         if (msg.type === 'game:over') {
+          setTurnDeadline(null)
           setWinner(msg.winner as string | null)
           setShowGameOver(true)
           const iWon = msg.winner === address
@@ -175,8 +130,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       }
       if (msg.type === 'game:joined') {
         getGame(gameId).then(({ game }) => {
-          setOpponent(address === game.blackPlayer ? game.whitePlayer : game.blackPlayer)
+          // Feature 6: recalculate color on join (random swap)
+          setBlackPlayer(game.blackPlayer)
+          setWhitePlayer(game.whitePlayer)
+          if (address === game.blackPlayer) {
+            setPlayerColor('black')
+            setOpponent(game.whitePlayer)
+          } else {
+            setPlayerColor('white')
+            setOpponent(game.blackPlayer)
+          }
           setTurnDeadline(game.currentTurnDeadline)
+          if (game.status === 'ready_check') {
+            setIsReadyCheck(true)
+            const amBlack = address === game.blackPlayer
+            setMyReady(amBlack ? game.blackReady : game.whiteReady)
+            setOpponentReady(amBlack ? game.whiteReady : game.blackReady)
+          }
           const stateStr = typeof game.gameState === 'string'
             ? game.gameState : JSON.stringify(game.gameState)
           const parsed = JSON.parse(stateStr)
@@ -186,7 +156,37 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           toast('Соперник присоединился!')
         })
       }
+      // Feature 4: Ready check events
+      if (msg.type === 'game:ready') {
+        const ready = msg as any
+        if (ready.player === address) {
+          setMyReady(true)
+        } else {
+          setOpponentReady(true)
+        }
+      }
+      if (msg.type === 'game:both_ready') {
+        setIsReadyCheck(false)
+        setMyReady(false)
+        setOpponentReady(false)
+        setShowSplash(true)
+        const game = (msg as any).game
+        if (game) {
+          setTurnDeadline(game.currentTurnDeadline)
+          const stateStr = typeof game.gameState === 'string'
+            ? game.gameState : JSON.stringify(game.gameState)
+          const parsed = JSON.parse(stateStr)
+          const state = parsed.b && typeof parsed.b === 'string'
+            ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || variant || 'russian' } as GameState
+          setGameState(state)
+        }
+      }
+      if (msg.type === 'game:canceled') {
+        toast('Игра отменена', 'error')
+        setTimeout(() => router.push('/'), 1500)
+      }
       if (msg.type === 'game:timeout') {
+        setTurnDeadline(null)
         setWinner(msg.winner as string | null)
         setShowGameOver(true)
         toast(msg.winner === address ? 'Соперник не успел — вы победили!' : 'Время вышло', msg.winner === address ? 'success' : 'error')
@@ -197,9 +197,53 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           toast('Соперник предлагает ничью')
         }
       }
+      // Feature 8: Rematch events
+      if (msg.type === 'game:rematch_offer') {
+        if ((msg as any).from !== address) {
+          setRematchPending(true)
+          toast('Соперник предлагает реванш')
+        }
+      }
+      if (msg.type === 'game:rematch_accept') {
+        const newGameId = (msg as any).newGameId
+        if (newGameId) router.push(`/game/${newGameId}`)
+      }
+      if (msg.type === 'game:rematch_decline') {
+        if ((msg as any).from !== address) {
+          setRematchOffered(false)
+          toast('Соперник отклонил реванш')
+        }
+      }
+      // Feature 11: Disconnect events
+      if (msg.type === 'player:disconnected') {
+        toast('Соперник отключился', 'error')
+      }
+      if (msg.type === 'player:connected') {
+        toast('Соперник переподключился', 'success')
+      }
     })
     return unsub
-  }, [subscribe, gameId, address, toast])
+  }, [subscribe, gameId, address, toast, router, variant, timePerMove])
+
+  // Feature 7: Toast 10 seconds before timeout
+  const timeoutToastFired = useRef<string | null>(null)
+  const isMyTurnNow = gameState?.currentTurn === playerColor && gameState?.status === 'playing'
+  useEffect(() => {
+    if (!turnDeadline || !isMyTurnNow) {
+      timeoutToastFired.current = null
+      return
+    }
+    const deadlineMs = new Date(turnDeadline).getTime()
+    const remainingMs = deadlineMs - Date.now()
+    if (remainingMs <= 0 || remainingMs <= 10_000) return
+    const timerId = setTimeout(() => {
+      if (timeoutToastFired.current !== turnDeadline) {
+        timeoutToastFired.current = turnDeadline
+        toast('Осталось 10 секунд!', 'error')
+      }
+    }, remainingMs - 10_000)
+    return () => clearTimeout(timerId)
+  }, [turnDeadline, isMyTurnNow, toast])
 
   const handleMove = useCallback(async (from: { row: number; col: number }, to: { row: number; col: number }) => {
     try {
@@ -233,16 +277,48 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     }
   }
 
-  const handleRematch = async () => {
+  // Feature 4: Ready check handler
+  const handleReady = async () => {
+    if (readyLoading) return
+    setReadyLoading(true)
+    try {
+      await confirmReady(gameId)
+      setMyReady(true)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
+    }
+    setReadyLoading(false)
+  }
+
+  // Feature 8: Rematch handlers
+  const handleRematchOffer = async () => {
     if (rematchLoading) return
     setRematchLoading(true)
     try {
-      const { game } = await createGame(wager, timePerMove, variant as 'russian' | 'american')
-      router.push(`/game/${game.id}`)
+      await offerRematch(gameId)
+      setRematchOffered(true)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Ошибка создания реванша', 'error')
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
     }
     setRematchLoading(false)
+  }
+
+  const handleRematchAccept = async () => {
+    try {
+      const { game } = await acceptRematch(gameId)
+      router.push(`/game/${game.id}`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
+    }
+  }
+
+  const handleRematchDecline = async () => {
+    try {
+      await declineRematch(gameId)
+      setRematchPending(false)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка', 'error')
+    }
   }
 
   const handleDrawAccept = async () => {
@@ -253,6 +329,16 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       toast(err instanceof Error ? err.message : 'Ошибка', 'error')
     }
   }
+
+  // Derived state
+  const isFinished = gameState ? ['black_wins', 'white_wins', 'draw'].includes(gameState.status) : false
+  const isPlaying = gameState?.status === 'playing'
+  const isWaiting = gameState?.status === 'waiting'
+
+  // Feature 2: Navigation block — only during active game, not when finished
+  const isPlayerCheck = !!address && (address === blackPlayer || address === whitePlayer)
+  const shouldBlock = !!(isPlayerCheck && (isPlaying || isReadyCheck) && !isFinished && !showGameOver)
+  const { showLeaveModal, confirmLeave, cancelLeave, tryNavigate } = useNavigationBlock(shouldBlock)
 
   if (loading) {
     return (
@@ -296,11 +382,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
   if (!gameState) return null
 
-  const isSpectator = !address || (address !== opponent && gameState.status !== 'waiting')
+  const isSpectator = !address || (address !== blackPlayer && address !== whitePlayer && gameState.status !== 'waiting')
   const isPlayer = !isSpectator
   const isMyTurn = isPlayer && gameState.currentTurn === playerColor
-  const isPlaying = gameState.status === 'playing'
-  const isWaiting = gameState.status === 'waiting'
   const opponentColor: PieceColor = playerColor === 'white' ? 'black' : 'white'
   const isOpponentTurn = isPlaying && gameState.currentTurn === opponentColor
 
@@ -309,7 +393,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg-card shrink-0">
         <button
-          onClick={() => router.push('/')}
+          onClick={() => tryNavigate(() => router.push('/'))}
           className="text-sm text-text-secondary hover:text-text transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -329,7 +413,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Move history toggle */}
           {gameState.moveHistory.length > 0 && (
             <button
               onClick={() => setShowMoves(!showMoves)}
@@ -345,7 +428,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         </div>
       </div>
 
-      {/* Game content — flex-1 fills remaining space */}
+      {/* Game content */}
       <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 py-3 overflow-hidden relative">
 
         {/* Spectator badge */}
@@ -372,24 +455,44 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           </div>
         )}
 
-        {/* Opponent card */}
+        {/* Feature 3: Avatar VS bar */}
         {!isWaiting && (
-          <PlayerCard
-            address={opponent}
-            pieceColor={opponentColor}
-            isCurrentTurn={isOpponentTurn}
+          <AvatarVsBar
+            opponent={{
+              address: opponent,
+              color: opponentColor,
+              isCurrentTurn: isOpponentTurn,
+              isReady: opponentReady,
+            }}
+            player={{
+              address: address,
+              color: playerColor,
+              isCurrentTurn: isMyTurn && isPlaying,
+              isReady: myReady,
+            }}
             deadline={turnDeadline}
             timePerMove={timePerMove}
-            isTop
+            isReadyCheck={isReadyCheck}
           />
         )}
 
-        {/* VS divider */}
-        {isPlaying && (
-          <div className="flex items-center gap-3 w-full max-w-md">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[10px] font-bold text-text-muted tracking-widest">VS</span>
-            <div className="flex-1 h-px bg-border" />
+        {/* Feature 4: Ready check UI */}
+        {isReadyCheck && isPlayer && (
+          <div className="w-full max-w-md">
+            {!myReady ? (
+              <button
+                onClick={handleReady}
+                disabled={readyLoading}
+                className="w-full py-3 bg-success text-white font-semibold rounded-xl hover:bg-success/90 transition-colors disabled:opacity-50"
+              >
+                {readyLoading ? 'Подтверждение...' : 'Начать игру'}
+              </button>
+            ) : (
+              <div className="px-4 py-3 bg-bg-card border border-border rounded-xl text-center">
+                <div className="w-5 h-5 mx-auto mb-1 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-text-secondary">Ожидание подтверждения соперника...</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -409,18 +512,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           externalState={gameState}
           onMove={handleMove}
         />
-
-        {/* Player card */}
-        {!isWaiting && (
-          <PlayerCard
-            address={address}
-            pieceColor={playerColor}
-            isCurrentTurn={isMyTurn && isPlaying}
-            deadline={turnDeadline}
-            timePerMove={timePerMove}
-            isTop={false}
-          />
-        )}
 
         {/* Turn indicator */}
         {isPlaying && isPlayer && (
@@ -485,9 +576,19 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           gameId={gameId}
           onClose={() => setShowGameOver(false)}
           onBackToLobby={() => router.push('/')}
-          onRematch={isPlayer ? handleRematch : undefined}
+          onRematch={isPlayer ? handleRematchOffer : undefined}
+          rematchOffered={rematchOffered}
+          rematchPending={rematchPending}
+          onRematchAccept={handleRematchAccept}
+          onRematchDecline={handleRematchDecline}
         />
       )}
+
+      {/* Feature 5: Game start splash */}
+      <GameStartSplash show={showSplash} onDone={() => setShowSplash(false)} />
+
+      {/* Feature 2: Leave game modal */}
+      <LeaveGameModal open={showLeaveModal} onConfirm={confirmLeave} onCancel={cancelLeave} />
     </div>
   )
 }

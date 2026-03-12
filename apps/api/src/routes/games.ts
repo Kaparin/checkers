@@ -8,7 +8,7 @@ import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
-import { AXIOME_DENOM } from '@checkers/shared/chain'
+import { AXIOME_DENOM, AXIOME_REST } from '@checkers/shared/chain'
 import { relayer } from '../services/relayer'
 import { ReferralService } from '../services/referral.service'
 import { JackpotService } from '../services/jackpot.service'
@@ -74,7 +74,7 @@ gameRoutes.get('/', zValidator('query', GameListSchema), async (c) => {
   if (status === 'waiting') {
     statusFilter = eq(games.status, 'waiting')
   } else if (status === 'playing') {
-    statusFilter = eq(games.status, 'playing')
+    statusFilter = inArray(games.status, ['playing', 'ready_check'])
   } else if (status === 'finished') {
     statusFilter = inArray(games.status, ['black_wins', 'white_wins', 'draw', 'timeout'])
   }
@@ -120,6 +120,22 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
   const address = c.get('address' as never) as string
   const db = c.get('db' as never) as Db
 
+  // Server-side balance check
+  if (wager !== '0') {
+    try {
+      const balRes = await fetch(`${AXIOME_REST}/cosmos/bank/v1beta1/balances/${address}`)
+      if (balRes.ok) {
+        const balData = await balRes.json() as { balances: { denom: string; amount: string }[] }
+        const axmBal = balData.balances?.find((b: { denom: string }) => b.denom === AXIOME_DENOM)
+        if (axmBal && Number(axmBal.amount) < Number(wager)) {
+          return c.json({ error: 'Insufficient balance' }, 400)
+        }
+      }
+    } catch {
+      // Chain unavailable — skip balance check
+    }
+  }
+
   const initialState = createInitialGameState(variant as GameVariant)
   initialState.status = 'waiting'
 
@@ -163,37 +179,93 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
   if (game.status !== 'waiting') return c.json({ error: 'Game already started' }, 400)
   if (game.blackPlayer === address) return c.json({ error: 'Cannot join your own game' }, 400)
 
-  const now = new Date()
-  const deadline = new Date(now.getTime() + game.timePerMove * 1000)
+  // Random side assignment
+  const swap = Math.random() < 0.5
+  const blackAddr = swap ? address : game.blackPlayer
+  const whiteAddr = swap ? game.blackPlayer : address
 
   const state = JSON.parse(game.gameState as string)
-  state.s = 'playing'
+  state.s = 'ready_check'
   state.t = 'black'
 
   const [updated] = await db.update(games).set({
-    whitePlayer: address,
-    status: 'playing',
+    blackPlayer: blackAddr,
+    whitePlayer: whiteAddr,
+    status: 'ready_check',
     gameState: JSON.stringify(state),
-    startedAt: now,
-    currentTurnDeadline: deadline,
+    blackReady: false,
+    whiteReady: false,
   }).where(eq(games.id, gameId)).returning()
 
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_JOINED, game: updated })
   broadcastToLobby({ type: WS_EVENTS.GAME_JOINED, gameId })
   logEvent(db, 'join_game', address, gameId)
 
-  // Background: lock opponent wager on-chain
-  if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
-    fireAndForget(`join:${gameId}`, async () => {
-      const txHash = await relayer.relayJoinGame(
-        address, game.onChainGameId!, game.wager, AXIOME_DENOM,
-      )
-      console.log(`[relay:join] Game ${gameId} on-chain #${game.onChainGameId} tx=${txHash.slice(0, 12)}...`)
-      await db.update(games).set({ txHashJoin: txHash }).where(eq(games.id, gameId))
+  return c.json({ game: updated })
+})
+
+// Ready check (auth required)
+gameRoutes.post('/:id/ready', requireAuth, async (c) => {
+  const address = c.get('address' as never) as string
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id') as string
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (game.status !== 'ready_check') return c.json({ error: 'Game is not in ready check' }, 400)
+
+  const isBlack = game.blackPlayer === address
+  const isWhite = game.whitePlayer === address
+  if (!isBlack && !isWhite) return c.json({ error: 'You are not in this game' }, 403)
+
+  // Update ready flag
+  const updateField = isBlack ? { blackReady: true } : { whiteReady: true }
+  await db.update(games).set(updateField).where(eq(games.id, gameId))
+
+  // Re-read to check if both ready (race condition safety)
+  const [fresh] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+
+  broadcastToGame(gameId, {
+    type: WS_EVENTS.GAME_READY,
+    player: address,
+    blackReady: fresh.blackReady,
+    whiteReady: fresh.whiteReady,
+  })
+
+  if (fresh.blackReady && fresh.whiteReady) {
+    const now = new Date()
+    const deadline = new Date(now.getTime() + game.timePerMove * 1000)
+
+    const state = JSON.parse(fresh.gameState as string)
+    state.s = 'playing'
+
+    const [started] = await db.update(games).set({
+      status: 'playing',
+      gameState: JSON.stringify(state),
+      startedAt: now,
+      currentTurnDeadline: deadline,
+    }).where(eq(games.id, gameId)).returning()
+
+    broadcastToGame(gameId, {
+      type: WS_EVENTS.GAME_BOTH_READY,
+      game: started,
     })
+
+    logEvent(db, 'game_started', undefined, gameId)
+
+    // Background: lock wagers on-chain
+    if (relayer.isReady && game.onChainGameId && game.wager !== '0' && game.whitePlayer) {
+      fireAndForget(`join:${gameId}`, async () => {
+        const txHash = await relayer.relayJoinGame(
+          game.whitePlayer!, game.onChainGameId!, game.wager, AXIOME_DENOM,
+        )
+        console.log(`[relay:join] Game ${gameId} on-chain #${game.onChainGameId} tx=${txHash.slice(0, 12)}...`)
+        await db.update(games).set({ txHashJoin: txHash }).where(eq(games.id, gameId))
+      })
+    }
   }
 
-  return c.json({ game: updated })
+  return c.json({ success: true, blackReady: fresh.blackReady, whiteReady: fresh.whiteReady })
 })
 
 // Make a move (auth required)
@@ -358,7 +430,7 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
 
   const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
   if (!game) return c.json({ error: 'Game not found' }, 404)
-  if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
+  if (game.status !== 'playing' && game.status !== 'ready_check') return c.json({ error: 'Game is not in progress' }, 400)
   if (game.blackPlayer !== address && game.whitePlayer !== address) {
     return c.json({ error: 'You are not in this game' }, 403)
   }
@@ -404,6 +476,75 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
 
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, winner, reason: 'resign' })
   return c.json({ game: updated })
+})
+
+// Rematch offer
+gameRoutes.post('/:id/rematch-offer', requireAuth, async (c) => {
+  const address = c.get('address' as never) as string
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id') as string
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (!['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
+    return c.json({ error: 'Game is not finished' }, 400)
+  }
+  if (game.blackPlayer !== address && game.whitePlayer !== address) {
+    return c.json({ error: 'You are not in this game' }, 403)
+  }
+
+  broadcastToGame(gameId, { type: WS_EVENTS.REMATCH_OFFER, from: address })
+  return c.json({ success: true })
+})
+
+// Rematch accept — creates a new game with swapped sides
+gameRoutes.post('/:id/rematch-accept', requireAuth, async (c) => {
+  const address = c.get('address' as never) as string
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id') as string
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (!['black_wins', 'white_wins', 'draw', 'timeout'].includes(game.status)) {
+    return c.json({ error: 'Game is not finished' }, 400)
+  }
+  if (game.blackPlayer !== address && game.whitePlayer !== address) {
+    return c.json({ error: 'You are not in this game' }, 403)
+  }
+
+  // Create new game with random sides
+  const swap = Math.random() < 0.5
+  const blackAddr = swap ? game.blackPlayer : game.whitePlayer
+  const whiteAddr = swap ? game.whitePlayer : game.blackPlayer
+
+  const initialState = createInitialGameState(game.variant as GameVariant)
+  initialState.status = 'ready_check' as any
+
+  const [newGame] = await db.insert(games).values({
+    blackPlayer: blackAddr,
+    whitePlayer: whiteAddr,
+    wager: game.wager,
+    timePerMove: game.timePerMove,
+    variant: game.variant,
+    gameState: serializeGameState(initialState),
+    status: 'ready_check',
+    blackReady: false,
+    whiteReady: false,
+  }).returning()
+
+  broadcastToGame(gameId, { type: WS_EVENTS.REMATCH_ACCEPT, newGameId: newGame.id })
+  logEvent(db, 'rematch', address, newGame.id, `from=${gameId}`)
+
+  return c.json({ game: newGame })
+})
+
+// Rematch decline
+gameRoutes.post('/:id/rematch-decline', requireAuth, async (c) => {
+  const address = c.get('address' as never) as string
+  const gameId = c.req.param('id') as string
+
+  broadcastToGame(gameId, { type: WS_EVENTS.REMATCH_DECLINE, from: address })
+  return c.json({ success: true })
 })
 
 // Draw offer

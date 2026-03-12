@@ -11,6 +11,7 @@ interface ChatMessage {
   sender: string
   text: string
   createdAt: string
+  isSpectator?: boolean
 }
 
 export function GameChat({ gameId }: { gameId: string }) {
@@ -19,6 +20,7 @@ export function GameChat({ gameId }: { gameId: string }) {
   const [sending, setSending] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [unread, setUnread] = useState(0)
+  const [players, setPlayers] = useState<{ black: string | null; white: string | null } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { address } = useWallet()
   const { subscribe } = useWebSocket(gameId)
@@ -28,12 +30,16 @@ export function GameChat({ gameId }: { gameId: string }) {
     fetch(`${API_URL}/chat/game/${gameId}`)
       .then(r => r.json())
       .then(data => {
+        if (data.players) setPlayers(data.players)
         if (data.messages) {
           setMessages(data.messages.map((m: any) => ({
             id: m.id,
             sender: m.senderAddress,
             text: m.message,
             createdAt: m.createdAt,
+            isSpectator: data.players
+              ? (m.senderAddress !== data.players.black && m.senderAddress !== data.players.white)
+              : false,
           })))
         }
       })
@@ -45,7 +51,7 @@ export function GameChat({ gameId }: { gameId: string }) {
     const unsub = subscribe((msg) => {
       if (msg.type === 'chat:message' && msg.message) {
         const m = msg.message as ChatMessage
-        setMessages(prev => [...prev, m])
+        setMessages(prev => [...prev, { ...m, isSpectator: m.isSpectator ?? false }])
         if (!isOpen) setUnread(u => u + 1)
       }
     })
@@ -114,10 +120,14 @@ export function GameChat({ gameId }: { gameId: string }) {
           return (
             <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
               <span className="text-[10px] text-text-muted mb-0.5">
-                {isMe ? 'Вы' : shortAddr(m.sender)}
+                {isMe ? 'Вы' : m.isSpectator ? `Наблюдатель — ${shortAddr(m.sender)}` : shortAddr(m.sender)}
               </span>
               <div className={`max-w-[85%] px-2.5 py-1.5 rounded-lg ${
-                isMe ? 'bg-accent text-white' : 'bg-bg-subtle text-text'
+                isMe
+                  ? 'bg-accent text-white'
+                  : m.isSpectator
+                    ? 'bg-bg-subtle/60 text-text-muted border border-border/50'
+                    : 'bg-bg-subtle text-text'
               }`}>
                 {m.text}
               </div>

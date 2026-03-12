@@ -96,6 +96,22 @@ export async function acceptDraw(gameId: string) {
   return request<{ game: GameFull }>(`/games/${gameId}/draw-accept`, { method: 'POST' })
 }
 
+export async function confirmReady(gameId: string) {
+  return request<{ success: boolean; blackReady: boolean; whiteReady: boolean }>(`/games/${gameId}/ready`, { method: 'POST' })
+}
+
+export async function offerRematch(gameId: string) {
+  return request<{ success: boolean }>(`/games/${gameId}/rematch-offer`, { method: 'POST' })
+}
+
+export async function acceptRematch(gameId: string) {
+  return request<{ game: GameFull }>(`/games/${gameId}/rematch-accept`, { method: 'POST' })
+}
+
+export async function declineRematch(gameId: string) {
+  return request<{ success: boolean }>(`/games/${gameId}/rematch-decline`, { method: 'POST' })
+}
+
 // ── Referrals ───────────────────────────────────────────────────────
 
 export async function getReferralCode() {
@@ -236,6 +252,8 @@ export interface GameFull extends GameListItem {
   txHashJoin: string | null
   txHashResolve: string | null
   currentTurnDeadline: string | null
+  blackReady: boolean
+  whiteReady: boolean
 }
 
 export interface UserProfile {

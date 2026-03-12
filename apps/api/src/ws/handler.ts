@@ -1,7 +1,9 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'http'
 import type { Db } from '@checkers/db'
-import { WsMessageSchema } from '@checkers/shared'
+import { games } from '@checkers/db'
+import { WsMessageSchema, WS_EVENTS } from '@checkers/shared'
+import { eq } from 'drizzle-orm'
 import { verifySessionToken } from '../services/session.service'
 
 interface ConnectedClient {
@@ -13,6 +15,9 @@ interface ConnectedClient {
 const clients = new Map<WebSocket, ConnectedClient>()
 const gameRooms = new Map<string, Set<WebSocket>>()
 const lobbyClients = new Set<WebSocket>()
+
+// Track disconnect timers for auto-forfeit
+const disconnectTimers = new Map<string, NodeJS.Timeout>() // key: `${gameId}:${address}`
 
 export function setupWebSocket(server: Server, db: Db) {
   const wss = new WebSocketServer({ server, path: '/ws' })
@@ -58,6 +63,21 @@ export function setupWebSocket(server: Server, db: Db) {
           }
           gameRooms.get(msg.gameId)!.add(ws)
           lobbyClients.delete(ws)
+
+          // Feature 11: Cancel disconnect timer on reconnect
+          if (client.address) {
+            const timerKey = `${msg.gameId}:${client.address}`
+            const existingTimer = disconnectTimers.get(timerKey)
+            if (existingTimer) {
+              clearTimeout(existingTimer)
+              disconnectTimers.delete(timerKey)
+              // Notify room that player reconnected
+              broadcastToGame(msg.gameId, {
+                type: WS_EVENTS.PLAYER_CONNECTED,
+                address: client.address,
+              })
+            }
+          }
           return
         }
 
@@ -75,9 +95,84 @@ export function setupWebSocket(server: Server, db: Db) {
     })
 
     ws.on('close', () => {
-      if (client.gameId) {
-        gameRooms.get(client.gameId)?.delete(ws)
+      const gameId = client.gameId
+      const address = client.address
+
+      if (gameId) {
+        gameRooms.get(gameId)?.delete(ws)
+
+        // Feature 11: Disconnect detection
+        if (address) {
+          // Check if this player is still connected via another socket
+          let stillConnected = false
+          const room = gameRooms.get(gameId)
+          if (room) {
+            for (const otherWs of room) {
+              const otherClient = clients.get(otherWs)
+              if (otherClient?.address === address && otherWs.readyState === WebSocket.OPEN) {
+                stillConnected = true
+                break
+              }
+            }
+          }
+
+          if (!stillConnected) {
+            // Broadcast disconnect
+            broadcastToGame(gameId, {
+              type: WS_EVENTS.PLAYER_DISCONNECTED,
+              address,
+            })
+
+            // Start 30s auto-forfeit timer
+            const timerKey = `${gameId}:${address}`
+            const timer = setTimeout(async () => {
+              disconnectTimers.delete(timerKey)
+              try {
+                const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+                if (!game) return
+                if (game.blackPlayer !== address && game.whitePlayer !== address) return
+
+                if (game.status === 'ready_check') {
+                  // During ready check, cancel the game instead of forfeit
+                  await db.update(games).set({
+                    status: 'canceled',
+                    finishedAt: new Date(),
+                  }).where(eq(games.id, gameId))
+                  broadcastToGame(gameId, {
+                    type: WS_EVENTS.GAME_CANCELED,
+                    reason: 'disconnect',
+                  })
+                  return
+                }
+
+                if (game.status !== 'playing') return
+
+                // Auto-forfeit: disconnected player loses
+                const winner = address === game.blackPlayer ? game.whitePlayer : game.blackPlayer
+                const winStatus = address === game.blackPlayer ? 'white_wins' : 'black_wins'
+
+                await db.update(games).set({
+                  status: winStatus,
+                  winner,
+                  finishedAt: new Date(),
+                  currentTurnDeadline: null,
+                }).where(eq(games.id, gameId))
+
+                broadcastToGame(gameId, {
+                  type: WS_EVENTS.GAME_OVER,
+                  winner,
+                  reason: 'disconnect',
+                })
+              } catch (err) {
+                console.error(`[ws] Auto-forfeit failed for ${gameId}:`, err)
+              }
+            }, 30_000)
+
+            disconnectTimers.set(timerKey, timer)
+          }
+        }
       }
+
       lobbyClients.delete(ws)
       clients.delete(ws)
     })

@@ -41,7 +41,7 @@ export interface Move {
   promotion: boolean   // whether the piece gets promoted
 }
 
-export type GameStatus = 'waiting' | 'playing' | 'black_wins' | 'white_wins' | 'draw'
+export type GameStatus = 'waiting' | 'ready_check' | 'playing' | 'black_wins' | 'white_wins' | 'draw'
 
 export type GameVariant = 'russian' | 'american'
 

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { gameMessages, globalChatMessages } from '@checkers/db'
+import { gameMessages, globalChatMessages, games } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { eq, desc, sql } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
@@ -36,18 +36,26 @@ chatRoutes.post('/game/:gameId', requireAuth, async (c) => {
     message: body.message.trim(),
   }).returning()
 
+  // Determine if sender is a spectator
+  const [game] = await db.select({ blackPlayer: games.blackPlayer, whitePlayer: games.whitePlayer })
+    .from(games).where(eq(games.id, gameId)).limit(1)
+  const isSpectator = game ? (address !== game.blackPlayer && address !== game.whitePlayer) : false
+
   broadcastToGame(gameId, {
     type: 'chat:message',
-    message: { id: msg.id, sender: address, text: msg.message, createdAt: msg.createdAt },
+    message: { id: msg.id, sender: address, text: msg.message, createdAt: msg.createdAt, isSpectator },
   })
 
-  return c.json({ message: msg })
+  return c.json({ message: { ...msg, isSpectator } })
 })
 
 // Get game chat history
 chatRoutes.get('/game/:gameId', async (c) => {
   const db = c.get('db' as never) as Db
   const gameId = c.req.param('gameId') as string
+
+  const [game] = await db.select({ blackPlayer: games.blackPlayer, whitePlayer: games.whitePlayer })
+    .from(games).where(eq(games.id, gameId)).limit(1)
 
   const messages = await db
     .select()
@@ -56,7 +64,10 @@ chatRoutes.get('/game/:gameId', async (c) => {
     .orderBy(desc(gameMessages.createdAt))
     .limit(50)
 
-  return c.json({ messages: messages.reverse() })
+  return c.json({
+    messages: messages.reverse(),
+    players: game ? { black: game.blackPlayer, white: game.whitePlayer } : null,
+  })
 })
 
 // Send global chat message

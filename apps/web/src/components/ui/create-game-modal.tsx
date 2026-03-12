@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useWallet } from '@/contexts/wallet-context'
+import { getBalance, formatAXM } from '@/lib/chain-actions'
 
 interface CreateGameModalProps {
   onClose: () => void
@@ -34,6 +36,22 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
   const [timePerMove, setTimePerMove] = useState(60)
   const [variant, setVariant] = useState<'russian' | 'american'>('russian')
   const [creating, setCreating] = useState(false)
+  const [balance, setBalance] = useState<string | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(true)
+  const { address } = useWallet()
+
+  useEffect(() => {
+    if (!address) return
+    setBalanceLoading(true)
+    getBalance(address)
+      .then(setBalance)
+      .catch(() => setBalance(null))
+      .finally(() => setBalanceLoading(false))
+  }, [address])
+
+  const balanceNum = balance ? Number(balance) : 0
+  const wagerMicro = wager * 1_000_000
+  const insufficientBalance = balance !== null && balanceNum < wagerMicro
 
   const handleCreate = async () => {
     setCreating(true)
@@ -58,6 +76,19 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
         className="relative bg-bg-card border border-border rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5"
       >
         <h2 className="text-xl font-bold text-center">Создать игру</h2>
+
+        {/* Balance display */}
+        <div className="text-center text-sm">
+          {balanceLoading ? (
+            <span className="text-text-muted">Загрузка баланса...</span>
+          ) : balance !== null ? (
+            <span className={insufficientBalance ? 'text-danger' : 'text-success'}>
+              Ваш баланс: {formatAXM(balance)} AXM
+            </span>
+          ) : (
+            <span className="text-text-muted">Баланс недоступен</span>
+          )}
+        </div>
 
         {/* Variant selector */}
         <div className="space-y-2">
@@ -105,6 +136,9 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
             className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
             placeholder="Другая сумма"
           />
+          {insufficientBalance && (
+            <p className="text-xs text-danger">Недостаточно средств для этой ставки</p>
+          )}
         </div>
 
         {/* Time */}
@@ -137,7 +171,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
           </button>
           <button
             onClick={handleCreate}
-            disabled={creating}
+            disabled={creating || insufficientBalance}
             className="flex-1 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
           >
             {creating ? 'Создание...' : 'Создать'}
