@@ -53,6 +53,13 @@ function recordCommission(db: Db, wager: string, gameId: string, winnerAddress?:
   }
 }
 
+/** Safely parse gameState from DB — handles both string and object (jsonb) */
+function parseRawGameState(raw: unknown): Record<string, unknown> {
+  if (typeof raw === 'string') return JSON.parse(raw)
+  if (typeof raw === 'object' && raw !== null) return raw as Record<string, unknown>
+  throw new Error('Invalid gameState format')
+}
+
 export const gameRoutes = new Hono()
 
 /**
@@ -184,7 +191,7 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
   const blackAddr = swap ? address : game.blackPlayer
   const whiteAddr = swap ? game.blackPlayer : address
 
-  const state = JSON.parse(game.gameState as string)
+  const state = parseRawGameState(game.gameState)
   state.s = 'ready_check'
   state.t = 'black'
 
@@ -236,7 +243,7 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
     const now = new Date()
     const deadline = new Date(now.getTime() + game.timePerMove * 1000)
 
-    const state = JSON.parse(fresh.gameState as string)
+    const state = parseRawGameState(fresh.gameState)
     state.s = 'playing'
 
     const [started] = await db.update(games).set({
@@ -280,11 +287,11 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
   if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
 
   // Parse game state
-  const stateRaw = game.gameState as string
-  const parsed = JSON.parse(stateRaw)
+  const parsed = parseRawGameState(game.gameState)
+  const stateStr = typeof game.gameState === 'string' ? game.gameState : JSON.stringify(game.gameState)
   const state: GameState = parsed.b && typeof parsed.b === 'string'
-    ? deserializeGameState(stateRaw)
-    : parsed as GameState
+    ? deserializeGameState(stateStr)
+    : parsed as unknown as GameState
 
   const currentPlayer = state.currentTurn === 'black' ? game.blackPlayer : game.whitePlayer
   if (currentPlayer !== address) return c.json({ error: 'Not your turn' }, 403)
