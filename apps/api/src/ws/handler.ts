@@ -188,7 +188,7 @@ export function broadcastToGame(gameId: string, message: unknown) {
   const data = JSON.stringify(message)
   for (const ws of room) {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(data)
+      try { ws.send(data) } catch {}
     }
   }
 }
@@ -197,7 +197,7 @@ export function broadcastToLobby(message: unknown) {
   const data = JSON.stringify(message)
   for (const ws of lobbyClients) {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(data)
+      try { ws.send(data) } catch {}
     }
   }
 }

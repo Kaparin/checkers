@@ -13,11 +13,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers['Content-Type'] = 'application/json'
   }
 
+  // 15s timeout for all API requests
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
-    credentials: 'include', // send cookies
-  })
+    credentials: 'include',
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout))
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
@@ -110,6 +115,18 @@ export async function acceptRematch(gameId: string) {
 
 export async function declineRematch(gameId: string) {
   return request<{ success: boolean }>(`/games/${gameId}/rematch-decline`, { method: 'POST' })
+}
+
+export async function getRelayStatus(gameId: string) {
+  return request<{
+    relayerActive: boolean
+    isOnChain: boolean
+    hasWager: boolean
+    txHashCreate: string | null
+    txHashJoin: string | null
+    txHashResolve: string | null
+    onChainGameId: number | null
+  }>(`/games/${gameId}/relay-status`)
 }
 
 // ── Referrals ───────────────────────────────────────────────────────

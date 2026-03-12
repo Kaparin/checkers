@@ -609,3 +609,33 @@ gameRoutes.post('/:id/draw-accept', requireAuth, async (c) => {
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, reason: 'draw' })
   return c.json({ game: updated })
 })
+
+// Relay status for a game
+gameRoutes.get('/:id/relay-status', async (c) => {
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id') as string
+
+  const [game] = await db.select({
+    txHashCreate: games.txHashCreate,
+    txHashJoin: games.txHashJoin,
+    txHashResolve: games.txHashResolve,
+    onChainGameId: games.onChainGameId,
+    status: games.status,
+    wager: games.wager,
+  }).from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+
+  const relayerActive = relayer.isReady
+  const isOnChain = !!game.onChainGameId
+  const hasWager = game.wager !== '0'
+
+  return c.json({
+    relayerActive,
+    isOnChain,
+    hasWager,
+    txHashCreate: game.txHashCreate,
+    txHashJoin: game.txHashJoin,
+    txHashResolve: game.txHashResolve,
+    onChainGameId: game.onChainGameId,
+  })
+})

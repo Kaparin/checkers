@@ -43,7 +43,9 @@ export function GameChat({ gameId }: { gameId: string }) {
           })))
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        // Chat unavailable — silently fail
+      })
   }, [gameId])
 
   // Listen for new messages via WS
@@ -78,7 +80,15 @@ export function GameChat({ gameId }: { gameId: string }) {
         body: JSON.stringify({ message: input.trim() }),
       })
       setInput('')
-    } catch {}
+    } catch {
+      // Show inline feedback
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        sender: 'system',
+        text: 'Не удалось отправить сообщение',
+        createdAt: new Date().toISOString(),
+      }])
+    }
     setSending(false)
   }, [input, sending, address, gameId])
 

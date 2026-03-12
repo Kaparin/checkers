@@ -57,9 +57,12 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
     setCreating(true)
     try {
       await onCreate(String(wager * 1_000_000), timePerMove, variant)
-    } finally {
+    } catch (err) {
+      // Error will be handled by the parent, but reset state
       setCreating(false)
+      return
     }
+    setCreating(false)
   }
 
   return (
@@ -131,6 +134,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
           </div>
           <input
             type="number"
+            min="1"
             value={wager}
             onChange={(e) => setWager(Math.max(1, Number(e.target.value)))}
             className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-lg text-sm focus:outline-none focus:border-accent"

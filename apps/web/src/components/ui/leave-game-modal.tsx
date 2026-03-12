@@ -33,7 +33,7 @@ export function LeaveGameModal({ open, onConfirm, onCancel }: LeaveGameModalProp
             </div>
             <h3 className="text-lg font-bold">Покинуть игру?</h3>
             <p className="text-sm text-text-secondary">
-              Вы покинете игру. Ваши средства автоматически вернутся через определённое время.
+              Если вы покинете игру, через 30 секунд вам будет засчитано поражение, а соперник получит выигрыш.
             </p>
             <div className="flex gap-3">
               <button

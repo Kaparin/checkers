@@ -17,6 +17,8 @@ interface GameOverModalProps {
   rematchPending?: boolean
   onRematchAccept?: () => void
   onRematchDecline?: () => void
+  txHashResolve?: string | null
+  relayerActive?: boolean
 }
 
 export function GameOverModal({
@@ -33,6 +35,8 @@ export function GameOverModal({
   rematchPending,
   onRematchAccept,
   onRematchDecline,
+  txHashResolve,
+  relayerActive,
 }: GameOverModalProps) {
   const iWon = winner === myAddress
   const isDraw = gameState.status === 'draw'
@@ -88,6 +92,15 @@ export function GameOverModal({
             <div className="flex justify-between px-4">
               <span className="text-text-secondary">Выигрыш</span>
               <span className="font-medium text-success">+{prizeDisplay} AXM</span>
+            </div>
+          )}
+          {/* On-chain status */}
+          {Number(wager) > 0 && (
+            <div className="flex justify-between px-4">
+              <span className="text-text-secondary">On-chain</span>
+              <span className={`font-medium ${txHashResolve ? 'text-success' : relayerActive ? 'text-warning' : 'text-text-muted'}`}>
+                {txHashResolve ? 'Подтверждено' : relayerActive ? 'Ожидание...' : 'Офлайн'}
+              </span>
             </div>
           )}
         </div>

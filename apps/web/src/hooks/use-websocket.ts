@@ -48,10 +48,12 @@ export function useWebSocket(gameId?: string) {
         setConnected(false)
         wsRef.current = null
 
-        // Exponential backoff reconnect
-        const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 30000)
-        reconnectAttempt.current++
-        reconnectTimer.current = setTimeout(connect, delay)
+        // Exponential backoff reconnect (max 50 attempts)
+        if (reconnectAttempt.current < 50) {
+          const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 30000)
+          reconnectAttempt.current++
+          reconnectTimer.current = setTimeout(connect, delay)
+        }
       }
 
       ws.onerror = () => {

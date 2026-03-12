@@ -8,6 +8,7 @@ interface PlayerInfo {
   color: PieceColor
   isCurrentTurn: boolean
   isReady?: boolean
+  isDisconnected?: boolean
 }
 
 interface AvatarVsBarProps {
@@ -61,11 +62,12 @@ function Timer({ deadline, timePerMove, isActive }: { deadline: string | null; t
   )
 }
 
-function Avatar({ address, color, isReadyCheck, isReady }: {
+function Avatar({ address, color, isReadyCheck, isReady, isDisconnected }: {
   address: string | null
   color: PieceColor
   isReadyCheck: boolean
   isReady?: boolean
+  isDisconnected?: boolean
 }) {
   const letter = address ? address[3].toUpperCase() : '?'
 
@@ -97,6 +99,13 @@ function Avatar({ address, color, isReadyCheck, isReady }: {
           )}
         </div>
       )}
+      {isDisconnected && !isReadyCheck && (
+        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-danger flex items-center justify-center">
+          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+      )}
     </div>
   )
 }
@@ -120,14 +129,17 @@ function PlayerSide({ info, deadline, timePerMove, isReadyCheck, align }: {
           color={info.color}
           isReadyCheck={isReadyCheck}
           isReady={info.isReady}
+          isDisconnected={info.isDisconnected}
         />
         <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}>
           <p className="text-xs font-medium text-text truncate">{short}</p>
-          {isReadyCheck && (
+          {isReadyCheck ? (
             <p className="text-[10px] text-text-muted">
               {info.isReady ? 'Готов' : 'Подключается...'}
             </p>
-          )}
+          ) : info.isDisconnected ? (
+            <p className="text-[10px] text-danger font-medium">Отключён</p>
+          ) : null}
         </div>
       </div>
       {!isReadyCheck && (

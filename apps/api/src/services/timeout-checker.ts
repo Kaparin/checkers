@@ -2,7 +2,7 @@ import { lt, eq } from 'drizzle-orm'
 import { games, users, txEvents, treasuryLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { broadcastToGame } from '../ws/handler'
-import { WS_EVENTS } from '@checkers/shared'
+import { WS_EVENTS, calculateElo } from '@checkers/shared'
 import { sql } from 'drizzle-orm'
 import { relayer } from './relayer'
 import { ReferralService } from './referral.service'
@@ -28,7 +28,15 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
 
       for (const game of timedOut) {
         // Parse current turn from game state
-        const stateData = JSON.parse(game.gameState as string)
+        let stateData: Record<string, unknown>
+        try {
+          stateData = typeof game.gameState === 'string'
+            ? JSON.parse(game.gameState)
+            : game.gameState as Record<string, unknown>
+        } catch {
+          console.error(`[timeout] Failed to parse gameState for ${game.id}`)
+          continue
+        }
         const currentTurn = stateData.t || stateData.currentTurn
 
         // The player whose turn it was loses
@@ -55,6 +63,17 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
             gamesPlayed: sql`games_played + 1`,
             gamesLost: sql`games_lost + 1`,
           }).where(eq(users.address, loser))
+        }
+
+        // ELO update on timeout
+        if (winner && loser) {
+          const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
+          const [loserUser] = await db.select().from(users).where(eq(users.address, loser)).limit(1)
+          if (winnerUser && loserUser) {
+            const elo = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
+            await db.update(users).set({ elo: elo.newRatingWinner }).where(eq(users.address, winner))
+            await db.update(users).set({ elo: elo.newRatingLoser }).where(eq(users.address, loser))
+          }
         }
 
         // Record commission + referral rewards
