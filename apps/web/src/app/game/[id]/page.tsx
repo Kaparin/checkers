@@ -12,7 +12,7 @@ import { LeaveGameModal } from '@/components/ui/leave-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useNavigationBlock } from '@/hooks/use-navigation-block'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, confirmReady, offerRematch, acceptRematch, declineRematch } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, joinGame, confirmReady, offerRematch, acceptRematch, declineRematch } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
@@ -38,69 +38,79 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [showResignConfirm, setShowResignConfirm] = useState(false)
   const [showMoves, setShowMoves] = useState(false)
   const [variant, setVariant] = useState<string>('russian')
+  const [joiningGame, setJoiningGame] = useState(false)
 
-  // Track actual player addresses for correct isSpectator check
+  // Track actual player addresses
   const [blackPlayer, setBlackPlayer] = useState<string | null>(null)
   const [whitePlayer, setWhitePlayer] = useState<string | null>(null)
 
-  // Feature 4: Ready check
+  // Ready check
   const [isReadyCheck, setIsReadyCheck] = useState(false)
   const [myReady, setMyReady] = useState(false)
   const [opponentReady, setOpponentReady] = useState(false)
   const [readyLoading, setReadyLoading] = useState(false)
 
-  // Feature 5: Game start splash
+  // Game start splash
   const [showSplash, setShowSplash] = useState(false)
 
-  // Feature 8: Rematch with confirmation
+  // Rematch
   const [rematchOffered, setRematchOffered] = useState(false)
   const [rematchPending, setRematchPending] = useState(false)
   const [rematchLoading, setRematchLoading] = useState(false)
 
   const { subscribe, connected } = useWebSocket(gameId)
-  const { address } = useWallet()
+  const { address, isConnected, openConnectModal } = useWallet()
+
+  // Helper: parse game state from API response
+  function parseGameState(game: any): GameState {
+    const stateStr = typeof game.gameState === 'string'
+      ? game.gameState : JSON.stringify(game.gameState)
+    const parsed = JSON.parse(stateStr)
+    return parsed.b && typeof parsed.b === 'string'
+      ? deserializeGameState(stateStr)
+      : { ...parsed, variant: parsed.variant || game.variant || 'russian' } as GameState
+  }
+
+  // Helper: sync all state from game object
+  function syncGameData(game: any) {
+    setWager(game.wager)
+    setTimePerMove(game.timePerMove)
+    setTurnDeadline(game.currentTurnDeadline)
+    setVariant(game.variant || 'russian')
+    setBlackPlayer(game.blackPlayer)
+    setWhitePlayer(game.whitePlayer)
+
+    if (address === game.blackPlayer) {
+      setPlayerColor('black')
+      setOpponent(game.whitePlayer)
+    } else {
+      setPlayerColor('white')
+      setOpponent(game.blackPlayer)
+    }
+
+    if (game.status === 'ready_check') {
+      setIsReadyCheck(true)
+      const amBlack = address === game.blackPlayer
+      setMyReady(amBlack ? game.blackReady : game.whiteReady)
+      setOpponentReady(amBlack ? game.whiteReady : game.blackReady)
+    } else {
+      setIsReadyCheck(false)
+    }
+
+    setGameState(parseGameState(game))
+
+    if (game.winner) {
+      setWinner(game.winner)
+      setShowGameOver(true)
+    }
+  }
 
   // Load game
   useEffect(() => {
     async function load() {
       try {
         const { game } = await getGame(gameId)
-        setWager(game.wager)
-        setTimePerMove(game.timePerMove)
-        setTurnDeadline(game.currentTurnDeadline)
-        setVariant(game.variant || 'russian')
-
-        // Feature 6: recalculate playerColor from server (may have swapped)
-        setBlackPlayer(game.blackPlayer)
-        setWhitePlayer(game.whitePlayer)
-        if (address === game.blackPlayer) {
-          setPlayerColor('black')
-          setOpponent(game.whitePlayer)
-        } else {
-          setPlayerColor('white')
-          setOpponent(game.blackPlayer)
-        }
-
-        // Feature 4: Ready check state
-        if (game.status === 'ready_check') {
-          setIsReadyCheck(true)
-          const amBlack = address === game.blackPlayer
-          setMyReady(amBlack ? game.blackReady : game.whiteReady)
-          setOpponentReady(amBlack ? game.whiteReady : game.blackReady)
-        }
-
-        const stateStr = typeof game.gameState === 'string'
-          ? game.gameState : JSON.stringify(game.gameState)
-        const parsed = JSON.parse(stateStr)
-        const state = parsed.b && typeof parsed.b === 'string'
-          ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || game.variant || 'russian' } as GameState
-
-        setGameState(state)
-
-        if (game.winner) {
-          setWinner(game.winner)
-          setShowGameOver(true)
-        }
+        syncGameData(game)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка загрузки игры')
       } finally {
@@ -116,7 +126,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       if (msg.type === 'game:move' || msg.type === 'game:over') {
         const gs = msg.gameState as GameState
         if (gs) setGameState(prev => ({ ...gs, variant: gs.variant || prev?.variant || 'russian' }))
-        // Update deadline on opponent's move
         if (msg.type === 'game:move') {
           setTurnDeadline(new Date(Date.now() + timePerMove * 1000).toISOString())
         }
@@ -130,33 +139,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       }
       if (msg.type === 'game:joined') {
         getGame(gameId).then(({ game }) => {
-          // Feature 6: recalculate color on join (random swap)
-          setBlackPlayer(game.blackPlayer)
-          setWhitePlayer(game.whitePlayer)
-          if (address === game.blackPlayer) {
-            setPlayerColor('black')
-            setOpponent(game.whitePlayer)
-          } else {
-            setPlayerColor('white')
-            setOpponent(game.blackPlayer)
-          }
-          setTurnDeadline(game.currentTurnDeadline)
-          if (game.status === 'ready_check') {
-            setIsReadyCheck(true)
-            const amBlack = address === game.blackPlayer
-            setMyReady(amBlack ? game.blackReady : game.whiteReady)
-            setOpponentReady(amBlack ? game.whiteReady : game.blackReady)
-          }
-          const stateStr = typeof game.gameState === 'string'
-            ? game.gameState : JSON.stringify(game.gameState)
-          const parsed = JSON.parse(stateStr)
-          const state = parsed.b && typeof parsed.b === 'string'
-            ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || game.variant || 'russian' } as GameState
-          setGameState(state)
+          syncGameData(game)
           toast('Соперник присоединился!')
-        })
+        }).catch(() => {})
       }
-      // Feature 4: Ready check events
       if (msg.type === 'game:ready') {
         const ready = msg as any
         if (ready.player === address) {
@@ -173,12 +159,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         const game = (msg as any).game
         if (game) {
           setTurnDeadline(game.currentTurnDeadline)
-          const stateStr = typeof game.gameState === 'string'
-            ? game.gameState : JSON.stringify(game.gameState)
-          const parsed = JSON.parse(stateStr)
-          const state = parsed.b && typeof parsed.b === 'string'
-            ? deserializeGameState(stateStr) : { ...parsed, variant: parsed.variant || variant || 'russian' } as GameState
-          setGameState(state)
+          setGameState(parseGameState(game))
         }
       }
       if (msg.type === 'game:canceled') {
@@ -197,7 +178,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           toast('Соперник предлагает ничью')
         }
       }
-      // Feature 8: Rematch events
       if (msg.type === 'game:rematch_offer') {
         if ((msg as any).from !== address) {
           setRematchPending(true)
@@ -214,7 +194,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           toast('Соперник отклонил реванш')
         }
       }
-      // Feature 11: Disconnect events
       if (msg.type === 'player:disconnected') {
         toast('Соперник отключился', 'error')
       }
@@ -225,7 +204,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     return unsub
   }, [subscribe, gameId, address, toast, router, variant, timePerMove])
 
-  // Feature 7: Toast 10 seconds before timeout
+  // Toast 10 seconds before timeout
   const timeoutToastFired = useRef<string | null>(null)
   const isMyTurnNow = gameState?.currentTurn === playerColor && gameState?.status === 'playing'
   useEffect(() => {
@@ -245,6 +224,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     return () => clearTimeout(timerId)
   }, [turnDeadline, isMyTurnNow, toast])
 
+  // --- Handlers ---
+
   const handleMove = useCallback(async (from: { row: number; col: number }, to: { row: number; col: number }) => {
     try {
       const result = await makeMove(gameId, from, to)
@@ -257,6 +238,32 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       toast(err instanceof Error ? err.message : 'Ошибка хода', 'error')
     }
   }, [gameId, timePerMove, toast])
+
+  const handleJoinGame = async () => {
+    if (joiningGame) return
+    if (!isConnected) {
+      openConnectModal()
+      return
+    }
+    setJoiningGame(true)
+    try {
+      const { game } = await joinGame(gameId)
+      syncGameData(game)
+      toast('Вы присоединились к игре!')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка присоединения', 'error')
+    }
+    setJoiningGame(false)
+  }
+
+  const handleCancel = async () => {
+    try {
+      await cancelGame(gameId)
+      router.push('/')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка отмены', 'error')
+    }
+  }
 
   const handleResign = async () => {
     try {
@@ -277,7 +284,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     }
   }
 
-  // Feature 4: Ready check handler
   const handleReady = async () => {
     if (readyLoading) return
     setReadyLoading(true)
@@ -290,7 +296,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     setReadyLoading(false)
   }
 
-  // Feature 8: Rematch handlers
   const handleRematchOffer = async () => {
     if (rematchLoading) return
     setRematchLoading(true)
@@ -330,15 +335,25 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     }
   }
 
-  // Derived state
+  // --- Derived state ---
   const isFinished = gameState ? ['black_wins', 'white_wins', 'draw'].includes(gameState.status) : false
   const isPlaying = gameState?.status === 'playing'
   const isWaiting = gameState?.status === 'waiting'
+  const isCreator = !!address && address === blackPlayer
+  const isPlayer = !!address && (address === blackPlayer || address === whitePlayer)
+  const isSpectator = !isPlayer
+  const isMyTurn = isPlayer && gameState?.currentTurn === playerColor
+  const opponentColor: PieceColor = playerColor === 'white' ? 'black' : 'white'
+  const isOpponentTurn = isPlaying && gameState?.currentTurn === opponentColor
 
-  // Feature 2: Navigation block — only during active game, not when finished
-  const isPlayerCheck = !!address && (address === blackPlayer || address === whitePlayer)
-  const shouldBlock = !!(isPlayerCheck && (isPlaying || isReadyCheck) && !isFinished && !showGameOver)
+  // Can this user join? (waiting game, not creator, not already a player)
+  const canJoin = isWaiting && !isCreator && !isPlayer
+
+  // Navigation block — only during active game
+  const shouldBlock = !!(isPlayer && (isPlaying || isReadyCheck) && !isFinished && !showGameOver)
   const { showLeaveModal, confirmLeave, cancelLeave, tryNavigate } = useNavigationBlock(shouldBlock)
+
+  // --- Render ---
 
   if (loading) {
     return (
@@ -381,12 +396,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   }
 
   if (!gameState) return null
-
-  const isSpectator = !address || (address !== blackPlayer && address !== whitePlayer && gameState.status !== 'waiting')
-  const isPlayer = !isSpectator
-  const isMyTurn = isPlayer && gameState.currentTurn === playerColor
-  const opponentColor: PieceColor = playerColor === 'white' ? 'black' : 'white'
-  const isOpponentTurn = isPlaying && gameState.currentTurn === opponentColor
 
   return (
     <div className="fixed inset-0 bg-bg flex flex-col">
@@ -438,24 +447,70 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           </div>
         )}
 
-        {/* Waiting state */}
+        {/* ========== WAITING STATE ========== */}
         {isWaiting && (
           <div className="w-full max-w-md space-y-3 mb-3">
-            <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
-              <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-text-secondary">Ожидание соперника...</p>
-            </div>
-            <InviteLink gameId={gameId} />
-            <button
-              onClick={async () => { await cancelGame(gameId); router.push('/') }}
-              className="w-full py-2.5 text-sm font-medium text-danger border border-danger/30 rounded-xl hover:bg-danger/5 transition-colors"
-            >
-              Отменить
-            </button>
+            {/* CREATOR view: waiting for opponent */}
+            {isCreator && (
+              <>
+                <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
+                  <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-text-secondary">Ожидание соперника...</p>
+                </div>
+                <InviteLink gameId={gameId} />
+                <button
+                  onClick={handleCancel}
+                  className="w-full py-2.5 text-sm font-medium text-danger border border-danger/30 rounded-xl hover:bg-danger/5 transition-colors"
+                >
+                  Отменить
+                </button>
+              </>
+            )}
+
+            {/* GUEST view: can join the game */}
+            {canJoin && (
+              <div className="px-6 py-5 bg-bg-card border border-border rounded-xl text-center space-y-4">
+                <div className="space-y-1">
+                  <p className="text-lg font-bold">Приглашение в игру</p>
+                  <p className="text-sm text-text-secondary">
+                    Ставка: <span className="font-semibold text-text">{(Number(wager) / 1_000_000).toFixed(0)} AXM</span>
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {variant === 'russian' ? 'Русские шашки' : 'Американские шашки'} &middot; {timePerMove}с на ход
+                  </p>
+                </div>
+                <button
+                  onClick={handleJoinGame}
+                  disabled={joiningGame}
+                  className="w-full py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-50"
+                >
+                  {joiningGame
+                    ? 'Подключение...'
+                    : isConnected
+                      ? 'Присоединиться'
+                      : 'Подключить кошелёк и играть'}
+                </button>
+                {!isConnected && (
+                  <p className="text-[10px] text-text-muted">
+                    Для игры необходим кошелёк с AXM
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Already a player but not creator — shouldn't happen normally but handle it */}
+            {isPlayer && !isCreator && (
+              <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
+                <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-text-secondary">Ожидание начала игры...</p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Feature 3: Avatar VS bar */}
+        {/* ========== ACTIVE GAME (ready_check / playing / finished) ========== */}
+
+        {/* Avatar VS bar */}
         {!isWaiting && (
           <AvatarVsBar
             opponent={{
@@ -476,7 +531,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           />
         )}
 
-        {/* Feature 4: Ready check UI */}
+        {/* Ready check UI */}
         {isReadyCheck && isPlayer && (
           <div className="w-full max-w-md">
             {!myReady ? (
@@ -584,10 +639,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         />
       )}
 
-      {/* Feature 5: Game start splash */}
+      {/* Game start splash */}
       <GameStartSplash show={showSplash} onDone={() => setShowSplash(false)} />
 
-      {/* Feature 2: Leave game modal */}
+      {/* Leave game modal */}
       <LeaveGameModal open={showLeaveModal} onConfirm={confirmLeave} onCancel={cancelLeave} />
     </div>
   )

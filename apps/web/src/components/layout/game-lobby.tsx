@@ -83,8 +83,13 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   }
 
   async function handleJoin(gameId: string) {
-    await joinGame(gameId)
-    router.push(`/game/${gameId}`)
+    try {
+      await joinGame(gameId)
+      router.push(`/game/${gameId}`)
+    } catch {
+      // If join fails, still navigate to game page — user can join from there
+      router.push(`/game/${gameId}`)
+    }
   }
 
   if (showLocal) {
