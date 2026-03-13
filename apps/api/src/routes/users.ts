@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { users } from '@checkers/db'
 import type { Db } from '@checkers/db'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, gte } from 'drizzle-orm'
 
 export const userRoutes = new Hono()
 
@@ -23,6 +23,7 @@ userRoutes.get('/', async (c) => {
   const rows = await db
     .select()
     .from(users)
+    .where(gte(users.gamesPlayed, 1))
     .orderBy(desc(users.elo))
     .limit(50)
 

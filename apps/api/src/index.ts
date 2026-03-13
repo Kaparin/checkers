@@ -34,9 +34,9 @@ app.use('*', cors({
     const allowed = (process.env.CORS_ORIGIN || 'http://localhost:3000')
       .split(',')
       .map(s => s.trim())
-    if (!origin || allowed.includes(origin) || allowed.includes('*')) {
-      return origin || '*'
-    }
+    // With credentials: true, wildcard '*' is not allowed per CORS spec
+    if (!origin) return allowed[0] || 'http://localhost:3000'
+    if (allowed.includes(origin)) return origin
     return null
   },
   credentials: true,
