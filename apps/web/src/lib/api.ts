@@ -4,7 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export { getStoredAddress }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const headers: Record<string, string> = {
     ...getAuthHeaders(),
     ...((options?.headers as Record<string, string>) || {}),
@@ -13,9 +13,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers['Content-Type'] = 'application/json'
   }
 
-  // 15s timeout for all API requests
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15_000)
+  const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 15_000)
 
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -77,6 +76,7 @@ export async function createGame(wager: string, timePerMove = 60, variant: 'russ
   return request<{ game: GameFull }>('/games', {
     method: 'POST',
     body: JSON.stringify({ wager, timePerMove, variant }),
+    timeoutMs: 30_000, // blockchain tx can take up to ~20s
   })
 }
 
@@ -108,7 +108,10 @@ export async function acceptDraw(gameId: string) {
 }
 
 export async function confirmReady(gameId: string) {
-  return request<{ success: boolean; blackReady: boolean; whiteReady: boolean }>(`/games/${gameId}/ready`, { method: 'POST' })
+  return request<{ success: boolean; blackReady: boolean; whiteReady: boolean }>(`/games/${gameId}/ready`, {
+    method: 'POST',
+    timeoutMs: 30_000, // blockchain tx on last ready
+  })
 }
 
 export async function offerRematch(gameId: string) {

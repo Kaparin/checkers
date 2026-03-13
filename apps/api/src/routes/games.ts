@@ -181,12 +181,11 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
     status: 'waiting',
   }).returning()
 
-  broadcastToLobby({ type: WS_EVENTS.GAME_CREATED, game: { id: game.id, wager, variant, blackPlayer: address, timePerMove } })
   logEvent(db, 'create_game', address, game.id, `wager=${wager} variant=${variant}`)
 
-  // Background: lock wager on-chain
+  // Synchronous: lock wager on-chain (must succeed before game is available)
   if (relayer.isReady && wager !== '0') {
-    fireAndForget(`create:${game.id}`, async () => {
+    try {
       const { txHash, onChainGameId } = await relayer.relayCreateGame(
         address, variant, timePerMove, wager, AXIOME_DENOM,
       )
@@ -195,9 +194,15 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
         onChainGameId,
         txHashCreate: txHash,
       }).where(eq(games.id, game.id))
-    })
+    } catch (err: any) {
+      console.error(`[relay:create] Game ${game.id} FAILED:`, err?.message || err)
+      // Rollback: delete game from DB since on-chain lock failed
+      await db.delete(games).where(eq(games.id, game.id))
+      return c.json({ error: 'Не удалось заблокировать ставку в блокчейне. Попробуйте снова.' }, 500)
+    }
   }
 
+  broadcastToLobby({ type: WS_EVENTS.GAME_CREATED, game: { id: game.id, wager, variant, blackPlayer: address, timePerMove } })
   return c.json({ game }, 201)
 })
 
@@ -313,15 +318,30 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
 
     logEvent(db, 'game_started', undefined, gameId)
 
-    // Background: lock wagers on-chain
+    // Synchronous: lock joiner's wager on-chain (must succeed before game starts)
     if (relayer.isReady && game.onChainGameId && game.wager !== '0' && game.whitePlayer) {
-      fireAndForget(`join:${gameId}`, async () => {
+      try {
         const txHash = await relayer.relayJoinGame(
           game.whitePlayer!, game.onChainGameId!, game.wager, AXIOME_DENOM,
         )
         console.log(`[relay:join] Game ${gameId} on-chain #${game.onChainGameId} tx=${txHash.slice(0, 12)}...`)
         await db.update(games).set({ txHashJoin: txHash }).where(eq(games.id, gameId))
-      })
+      } catch (err: any) {
+        console.error(`[relay:join] Game ${gameId} FAILED:`, err?.message || err)
+        // Revert game back to ready_check — don't start without on-chain backing
+        await db.update(games).set({
+          status: 'ready_check',
+          blackReady: false,
+          whiteReady: false,
+          startedAt: null,
+          currentTurnDeadline: null,
+        }).where(eq(games.id, gameId))
+        broadcastToGame(gameId, {
+          type: 'game:join_failed',
+          error: 'Не удалось заблокировать ставку оппонента в блокчейне. Нажмите "Готов" снова.',
+        })
+        return c.json({ error: 'Не удалось заблокировать ставку в блокчейне' }, 500)
+      }
     }
   }
 
