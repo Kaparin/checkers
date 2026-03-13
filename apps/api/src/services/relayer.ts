@@ -27,15 +27,15 @@ function parseWasmEvents(result: DeliverTxResponse, contractAddress: string): Re
   const attrs: Record<string, string> = {}
   for (const event of (result.events || [])) {
     if (event.type !== 'wasm') continue
-    let isOurs = false
+    // Check if this event belongs to our contract first
+    const isOurs = event.attributes.some(
+      attr => attr.key === '_contract_address' && attr.value === contractAddress
+    )
+    if (!isOurs) continue
+    // Only collect attrs from our contract's events
     for (const attr of event.attributes) {
-      if (attr.key === '_contract_address' && attr.value === contractAddress) isOurs = true
-      attrs[attr.key] = attr.value
-    }
-    if (!isOurs) {
-      // clear attrs from non-our-contract events
-      for (const attr of event.attributes) {
-        if (attr.key !== '_contract_address') delete attrs[attr.key]
+      if (attr.key !== '_contract_address') {
+        attrs[attr.key] = attr.value
       }
     }
   }
