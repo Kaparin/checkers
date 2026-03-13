@@ -35,15 +35,16 @@ export default function JackpotPage() {
   const [pools, setPools] = useState<JackpotPool[]>([])
   const [winners, setWinners] = useState<JackpotWinner[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     Promise.all([
-      getJackpotPools().catch(() => ({ pools: [] })),
-      getJackpotWinners().catch(() => ({ winners: [] })),
+      getJackpotPools(),
+      getJackpotWinners(),
     ]).then(([p, w]) => {
       setPools(p.pools)
       setWinners(w.winners)
-    }).finally(() => setLoading(false))
+    }).catch(() => setError(true)).finally(() => setLoading(false))
   }, [])
 
   return (
@@ -56,7 +57,11 @@ export default function JackpotPage() {
       </div>
 
       {/* Pools */}
-      {loading ? (
+      {error ? (
+        <div className="border border-dashed border-danger/30 rounded-2xl p-12 text-center">
+          <p className="text-danger text-sm">Не удалось загрузить данные. Попробуйте позже.</p>
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="bg-bg-card border border-border rounded-2xl p-6">

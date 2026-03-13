@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useWallet } from '@/contexts/wallet-context'
+import { getStoredToken } from '@/lib/auth-headers'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -61,8 +62,8 @@ export function LobbyChat() {
     if (!input.trim() || sending || !address) return
     setSending(true)
     try {
-      const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null
-      await fetch(`${API_URL}/chat/global`, {
+      const token = getStoredToken()
+      const res = await fetch(`${API_URL}/chat/global`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,8 +72,16 @@ export function LobbyChat() {
         credentials: 'include',
         body: JSON.stringify({ message: input.trim() }),
       })
+      if (!res.ok) throw new Error('Send failed')
       setInput('')
-    } catch {}
+    } catch {
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        sender: 'system',
+        text: 'Не удалось отправить сообщение',
+        createdAt: new Date().toISOString(),
+      }])
+    }
     setSending(false)
   }, [input, sending, address])
 

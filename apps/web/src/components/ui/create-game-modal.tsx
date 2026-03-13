@@ -175,7 +175,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
           </button>
           <button
             onClick={handleCreate}
-            disabled={creating || insufficientBalance}
+            disabled={creating || insufficientBalance || balanceLoading}
             className="flex-1 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
           >
             {creating ? 'Создание...' : 'Создать'}

@@ -25,6 +25,7 @@ export default function ShopPage() {
   const [loading, setLoading] = useState(true)
   const [buying, setBuying] = useState<string | null>(null)
   const [result, setResult] = useState<{ item: string; reward: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     getShopItems()
@@ -37,10 +38,13 @@ export default function ShopPage() {
     if (!isConnected || buying) return
     setBuying(itemId)
     setResult(null)
+    setError(null)
     try {
       const res = await purchaseItem(itemId)
       setResult({ item: itemId, reward: res.reward })
-    } catch {}
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка покупки')
+    }
     setBuying(null)
   }
 
@@ -53,12 +57,17 @@ export default function ShopPage() {
         </p>
       </div>
 
-      {/* Success banner */}
+      {/* Result banners */}
       {result && (
         <div className="p-4 bg-success/10 border border-success/30 rounded-xl text-center">
           <p className="text-sm font-medium text-success">
             +{result.reward} CHECKER получено!
           </p>
+        </div>
+      )}
+      {error && (
+        <div className="p-4 bg-danger/10 border border-danger/30 rounded-xl text-center">
+          <p className="text-sm font-medium text-danger">{error}</p>
         </div>
       )}
 

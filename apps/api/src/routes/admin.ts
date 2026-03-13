@@ -291,9 +291,13 @@ adminRoutes.post('/actions/heal', async (c) => {
   )
   if (stuckPlaying.length > 0) {
     for (const game of stuckPlaying) {
-      const winner = game.currentTurnDeadline
-        ? (game.blackPlayer === game.blackPlayer ? game.whitePlayer : game.blackPlayer)
-        : null
+      // Determine whose turn it was (they lose for timing out)
+      let currentTurn: string | null = null
+      try {
+        const gs = typeof game.gameState === 'string' ? JSON.parse(game.gameState) : game.gameState as Record<string, unknown>
+        currentTurn = (gs?.t || gs?.currentTurn) as string | null
+      } catch {}
+      const winner = currentTurn === 'black' ? game.whitePlayer : game.blackPlayer
       await db.update(games).set({
         status: 'timeout',
         winner,

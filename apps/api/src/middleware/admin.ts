@@ -5,7 +5,7 @@ import type { Context, Next } from 'hono'
  * Returns 403 if the secret doesn't match.
  */
 export async function requireAdmin(c: Context, next: Next) {
-  const secret = c.req.header('x-admin-secret') || c.req.query('secret')
+  const secret = c.req.header('x-admin-secret')
   const expected = process.env.ADMIN_SECRET
 
   if (!expected || secret !== expected) {

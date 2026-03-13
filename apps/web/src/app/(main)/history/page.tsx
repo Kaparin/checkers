@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { listGames, getStoredAddress, type GameListItem } from '@/lib/api'
+import { listGames, type GameListItem } from '@/lib/api'
+import { useWallet } from '@/contexts/wallet-context'
 import { SkeletonCard } from '@/components/ui/skeleton'
 
 export default function HistoryPage() {
   const router = useRouter()
+  const { address } = useWallet()
   const [games, setGames] = useState<GameListItem[]>([])
   const [loading, setLoading] = useState(true)
-  const address = getStoredAddress()
 
   useEffect(() => {
     listGames('finished', 50)

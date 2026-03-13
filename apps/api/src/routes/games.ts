@@ -21,7 +21,7 @@ function logEvent(db: Db, action: string, address?: string, gameId?: string, det
     address,
     gameId,
     details,
-  }).catch(() => {})
+  }).catch(err => console.error('[logEvent]', err?.message))
 }
 
 /** Record commission from a resolved game + distribute referral rewards */
@@ -33,22 +33,22 @@ function recordCommission(db: Db, wager: string, gameId: string, winnerAddress?:
       amount: commission,
       gameId,
       txHash,
-    }).catch(() => {})
+    }).catch(err => console.error(`[commission] Game ${gameId}:`, err?.message))
 
     // 2% of commission → LAUNCH staking ledger
     const stakingAmount = String(Math.floor(Number(commission) * 0.02))
     if (Number(stakingAmount) > 0) {
-      db.insert(stakingLedger).values({ gameId, amount: stakingAmount }).catch(() => {})
+      db.insert(stakingLedger).values({ gameId, amount: stakingAmount }).catch(err => console.error(`[staking] Game ${gameId}:`, err?.message))
     }
 
     // Distribute referral rewards from commission (non-blocking)
     if (winnerAddress) {
       const referralService = new ReferralService(db)
-      referralService.distributeRewards(winnerAddress, commission, gameId).catch(() => {})
+      referralService.distributeRewards(winnerAddress, commission, gameId).catch(err => console.error(`[referral] Game ${gameId}:`, err?.message))
 
       // Contribute to jackpot pools (non-blocking)
       const jackpotService = new JackpotService(db)
-      jackpotService.contribute(gameId, winnerAddress, commission).catch(() => {})
+      jackpotService.contribute(gameId, winnerAddress, commission).catch(err => console.error(`[jackpot] Game ${gameId}:`, err?.message))
     }
   }
 }
@@ -130,11 +130,13 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
   // Server-side balance check
   if (wager !== '0') {
     try {
-      const balRes = await fetch(`${AXIOME_REST}/cosmos/bank/v1beta1/balances/${address}`)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const balRes = await fetch(`${AXIOME_REST}/cosmos/bank/v1beta1/balances/${address}`, { signal: controller.signal }).finally(() => clearTimeout(timeout))
       if (balRes.ok) {
         const balData = await balRes.json() as { balances: { denom: string; amount: string }[] }
         const axmBal = balData.balances?.find((b: { denom: string }) => b.denom === AXIOME_DENOM)
-        if (axmBal && Number(axmBal.amount) < Number(wager)) {
+        if (axmBal && BigInt(axmBal.amount) < BigInt(wager)) {
           return c.json({ error: 'Insufficient balance' }, 400)
         }
       }

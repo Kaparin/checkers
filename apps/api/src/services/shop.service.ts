@@ -26,13 +26,25 @@ export class ShopService {
     const tier = CHEST_TIERS[itemType as keyof typeof CHEST_TIERS]
     if (!tier) return { error: 'Unknown item' }
 
-    // Credit CHECKER to vault
+    // Check AXM vault balance
+    const [vault] = await this.db
+      .select()
+      .from(vaultBalances)
+      .where(eq(vaultBalances.address, address))
+      .limit(1)
+
+    const available = BigInt(vault?.available || '0')
+    const price = BigInt(tier.price)
+    if (available < price) return { error: 'Insufficient balance' }
+
+    // Deduct AXM and credit CHECKER
     await this.db
       .insert(vaultBalances)
-      .values({ address, checkerBalance: tier.reward })
+      .values({ address, available: (available - price).toString(), checkerBalance: tier.reward })
       .onConflictDoUpdate({
         target: vaultBalances.address,
         set: {
+          available: sql`(${vaultBalances.available}::numeric - ${tier.price}::numeric)::text`,
           checkerBalance: sql`(${vaultBalances.checkerBalance}::numeric + ${tier.reward}::numeric)::text`,
           updatedAt: new Date(),
         },

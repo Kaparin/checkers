@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { useWallet } from '@/contexts/wallet-context'
 import { getBalance } from '@/lib/chain-actions'
 
@@ -14,6 +15,7 @@ const NAV_LINKS = [
 ]
 
 export function Header() {
+  const pathname = usePathname()
   const { address, isConnected, openConnectModal, disconnect, savedWallets } = useWallet()
   const hasMultipleWallets = savedWallets.length > 1
   const [menuOpen, setMenuOpen] = useState(false)
@@ -51,12 +53,15 @@ export function Header() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-4">
-          <nav className="flex items-center gap-4 text-sm font-medium text-text-secondary">
-            {NAV_LINKS.map(link => (
-              <a key={link.href} href={link.href} className="hover:text-text transition-colors">
-                {link.label}
-              </a>
-            ))}
+          <nav className="flex items-center gap-4 text-sm font-medium">
+            {NAV_LINKS.map(link => {
+              const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
+              return (
+                <a key={link.href} href={link.href} className={`transition-colors ${isActive ? 'text-accent' : 'text-text-secondary hover:text-text'}`}>
+                  {link.label}
+                </a>
+              )
+            })}
           </nav>
 
           {isConnected ? (
@@ -122,16 +127,19 @@ export function Header() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden border-t border-border bg-bg-card px-4 py-3 space-y-1">
-          {NAV_LINKS.map(link => (
-            <a
-              key={link.href}
-              href={link.href}
-              onClick={() => setMenuOpen(false)}
-              className="block px-3 py-2 text-sm font-medium text-text-secondary hover:text-text hover:bg-bg-subtle rounded-lg transition-colors"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map(link => {
+            const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className={`block px-3 py-2 text-sm font-medium rounded-lg transition-colors ${isActive ? 'text-accent bg-accent/5' : 'text-text-secondary hover:text-text hover:bg-bg-subtle'}`}
+              >
+                {link.label}
+              </a>
+            )
+          })}
           <div className="border-t border-border pt-2 mt-2">
             {isConnected ? (
               <div className="space-y-2">
@@ -143,7 +151,7 @@ export function Header() {
                 )}
                 <div className="flex items-center justify-between px-3 py-2">
                   <a href="/profile" onClick={() => setMenuOpen(false)} className="text-xs font-mono text-text-secondary">
-                    {address!.slice(0, 10)}...{address!.slice(-4)}
+                    {address!.slice(0, 8)}...{address!.slice(-4)}
                   </a>
                   <div className="flex items-center gap-3">
                     {hasMultipleWallets && (
