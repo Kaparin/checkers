@@ -63,13 +63,7 @@ function findCaptures(
       r += dr
       c += dc
       while (inBounds(r, c) && (board[r][c] === null || alreadyCaptured.has(`${r},${c}`))) {
-        // Can only land on truly empty squares (not on captured-but-not-removed pieces)
-        if (board[r][c] !== null && !alreadyCaptured.has(`${r},${c}`)) {
-          r += dr
-          c += dc
-          continue
-        }
-        // But also skip if there's a real piece here (not captured)
+        // Skip captured-but-not-removed pieces (can't land on them)
         if (board[r][c] !== null) {
           r += dr
           c += dc

@@ -17,7 +17,7 @@ import {
   type SavedWallet,
 } from '@/lib/wallet-core'
 import { signChallenge } from '@/lib/wallet-signer'
-import { getChallenge, verifyAuth } from '@/lib/api'
+import { getChallenge, verifyAuth, logout } from '@/lib/api'
 import {
   setStoredToken,
   setStoredAddress,
@@ -59,6 +59,21 @@ export function useWebWallet(): UseWebWalletReturn {
     const storedAddress = getStoredAddress()
     const storedToken = getStoredToken()
     if (storedAddress && storedToken) {
+      // Check token expiry client-side (token format: base64url(address:expiresMs:hmac))
+      try {
+        const decoded = atob(storedToken.replace(/-/g, '+').replace(/_/g, '/'))
+        const parts = decoded.split(':')
+        if (parts.length >= 2 && parseInt(parts[1], 10) < Date.now()) {
+          clearStoredToken()
+          clearStoredAddress()
+          return
+        }
+      } catch {
+        // If decode fails, clear stale data
+        clearStoredToken()
+        clearStoredAddress()
+        return
+      }
       setAddress(storedAddress)
     }
   }, [])
@@ -164,6 +179,7 @@ export function useWebWallet(): UseWebWalletReturn {
   }, [savedWallets, registerSession])
 
   const disconnect = useCallback(() => {
+    logout().catch(() => {}) // clear server session
     setAddress(null)
     mnemonicRef.current = null
     clearStoredToken()

@@ -1,4 +1,4 @@
-import { getAuthHeaders, getStoredAddress } from './auth-headers'
+import { getAuthHeaders, getStoredAddress, clearStoredToken, clearStoredAddress } from './auth-headers'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -25,6 +25,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }).finally(() => clearTimeout(timeout))
 
   if (!res.ok) {
+    // Clear stale auth on 401
+    if (res.status === 401) {
+      clearStoredToken()
+      clearStoredAddress()
+    }
     const body = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(body.error || `HTTP ${res.status}`)
   }
