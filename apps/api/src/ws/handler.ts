@@ -1,9 +1,9 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'http'
 import type { Db } from '@checkers/db'
-import { games } from '@checkers/db'
-import { WsMessageSchema, WS_EVENTS } from '@checkers/shared'
-import { eq } from 'drizzle-orm'
+import { games, users } from '@checkers/db'
+import { WsMessageSchema, WS_EVENTS, calculateElo } from '@checkers/shared'
+import { eq, sql } from 'drizzle-orm'
 import { verifySessionToken } from '../services/session.service'
 
 interface ConnectedClient {
@@ -157,6 +157,25 @@ export function setupWebSocket(server: Server, db: Db) {
                   finishedAt: new Date(),
                   currentTurnDeadline: null,
                 }).where(eq(games.id, gameId))
+
+                // Update stats + ELO
+                if (winner) {
+                  await db.update(users).set({
+                    gamesPlayed: sql`games_played + 1`, gamesWon: sql`games_won + 1`,
+                    totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+                  }).where(eq(users.address, winner))
+                  await db.update(users).set({
+                    gamesPlayed: sql`games_played + 1`, gamesLost: sql`games_lost + 1`,
+                  }).where(eq(users.address, address))
+
+                  const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
+                  const [loserUser] = await db.select().from(users).where(eq(users.address, address)).limit(1)
+                  if (winnerUser && loserUser) {
+                    const elo = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
+                    await db.update(users).set({ elo: elo.newRatingWinner }).where(eq(users.address, winner))
+                    await db.update(users).set({ elo: elo.newRatingLoser }).where(eq(users.address, address))
+                  }
+                }
 
                 broadcastToGame(gameId, {
                   type: WS_EVENTS.GAME_OVER,

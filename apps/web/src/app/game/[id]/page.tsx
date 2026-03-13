@@ -12,7 +12,7 @@ import { LeaveGameModal } from '@/components/ui/leave-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useNavigationBlock } from '@/hooks/use-navigation-block'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, joinGame, confirmReady, offerRematch, acceptRematch, declineRematch, getRelayStatus } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, joinGame, confirmReady, offerRematch, acceptRematch, declineRematch } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
@@ -59,16 +59,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [rematchLoading, setRematchLoading] = useState(false)
 
   const [opponentDisconnected, setOpponentDisconnected] = useState(false)
-
-  // On-chain relay status
-  const [relayStatus, setRelayStatus] = useState<{
-    relayerActive: boolean
-    isOnChain: boolean
-    hasWager: boolean
-    txHashCreate: string | null
-    txHashJoin: string | null
-    txHashResolve: string | null
-  } | null>(null)
 
   const { subscribe, connected } = useWebSocket(gameId)
   const { address, isConnected, openConnectModal } = useWallet()
@@ -132,20 +122,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     load()
   }, [gameId, address])
 
-  // Poll relay status
-  useEffect(() => {
-    if (!gameId || wager === '0') return
-    let cancelled = false
-    const poll = () => {
-      getRelayStatus(gameId).then(data => {
-        if (!cancelled) setRelayStatus(data)
-      }).catch(() => {})
-    }
-    poll()
-    const interval = setInterval(poll, 15000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [gameId, wager])
-
   // WS events
   useEffect(() => {
     const unsub = subscribe((msg) => {
@@ -160,13 +136,18 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         }
         if (msg.type === 'game:over') {
           setTurnDeadline(null)
-          setWinner(msg.winner as string | null)
+          const w = (msg.winner as string | null) ?? null
+          setWinner(w)
           setShowGameOver(true)
           setDrawOffered(false)
           setDrawPending(false)
           setRematchOffered(false)
           setRematchPending(false)
-          const iWon = msg.winner === address
+          // If no gameState in message (resign/draw), fetch latest
+          if (!gs) {
+            getGame(gameId).then(({ game }) => syncGameData(game)).catch(() => {})
+          }
+          const iWon = w === address
           try { playGameOverSound(iWon) } catch {}
         }
       }
@@ -206,6 +187,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         toast(msg.winner === address ? 'Соперник не успел — вы победили!' : 'Время вышло', msg.winner === address ? 'success' : 'error')
         setDrawOffered(false)
         setDrawPending(false)
+        // Fetch latest game state
+        getGame(gameId).then(({ game }) => syncGameData(game)).catch(() => {})
       }
       if (msg.type === 'draw:offer') {
         if (msg.from !== address) {
@@ -221,7 +204,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       }
       if (msg.type === 'game:rematch_accept') {
         const newGameId = (msg as any).newGameId
-        if (newGameId) router.push(`/game/${newGameId}`)
+        // Only navigate for the player who OFFERED (not the one who accepted - they navigate from API response)
+        if (newGameId && rematchOffered) {
+          router.push(`/game/${newGameId}`)
+        }
       }
       if (msg.type === 'game:rematch_decline') {
         if ((msg as any).from !== address) {
@@ -229,17 +215,17 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           toast('Соперник отклонил реванш')
         }
       }
-      if (msg.type === 'player:disconnected') {
+      if (msg.type === 'player:disconnected' && msg.address !== address) {
         setOpponentDisconnected(true)
         toast('Соперник отключился. Автопоражение через 30 сек', 'error')
       }
-      if (msg.type === 'player:connected') {
+      if (msg.type === 'player:connected' && msg.address !== address) {
         setOpponentDisconnected(false)
         toast('Соперник переподключился', 'success')
       }
     })
     return unsub
-  }, [subscribe, gameId, address, toast, router, variant, timePerMove])
+  }, [subscribe, gameId, address, toast, router, variant, timePerMove, rematchOffered])
 
   // Toast 10 seconds before timeout
   const timeoutToastFired = useRef<string | null>(null)
@@ -373,8 +359,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   }
 
   // --- Derived state ---
-  const isFinished = gameState ? ['black_wins', 'white_wins', 'draw'].includes(gameState.status) : false
-  const isPlaying = gameState?.status === 'playing'
+  const isFinished = showGameOver || (gameState ? ['black_wins', 'white_wins', 'draw', 'timeout'].includes(gameState.status) : false)
+  const isPlaying = !isFinished && gameState?.status === 'playing'
   const isWaiting = gameState?.status === 'waiting'
   const isCreator = !!address && address === blackPlayer
   const isPlayer = !!address && (address === blackPlayer || address === whitePlayer)
@@ -470,23 +456,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               </svg>
             </button>
           )}
-          <div className="flex items-center gap-1.5">
-            {relayStatus && relayStatus.hasWager && (
-              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
-                relayStatus.isOnChain
-                  ? 'bg-success/10 text-success'
-                  : relayStatus.relayerActive
-                    ? 'bg-warning/10 text-warning'
-                    : 'bg-danger/10 text-danger'
-              }`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                  relayStatus.isOnChain ? 'bg-success' : relayStatus.relayerActive ? 'bg-warning animate-pulse' : 'bg-danger'
-                }`} />
-                {relayStatus.isOnChain ? 'On-chain' : relayStatus.relayerActive ? 'Синхр...' : 'Офлайн'}
-              </div>
-            )}
-            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
-          </div>
+          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
         </div>
       </div>
 
@@ -700,8 +670,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           rematchPending={rematchPending}
           onRematchAccept={handleRematchAccept}
           onRematchDecline={handleRematchDecline}
-          txHashResolve={relayStatus?.txHashResolve}
-          relayerActive={relayStatus?.relayerActive}
         />
       )}
 

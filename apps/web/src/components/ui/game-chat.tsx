@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useWallet } from '@/contexts/wallet-context'
+import { getStoredToken } from '@/lib/auth-headers'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -69,8 +70,8 @@ export function GameChat({ gameId }: { gameId: string }) {
     if (!input.trim() || sending || !address) return
     setSending(true)
     try {
-      const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null
-      await fetch(`${API_URL}/chat/game/${gameId}`, {
+      const token = getStoredToken()
+      const res = await fetch(`${API_URL}/chat/game/${gameId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,6 +80,7 @@ export function GameChat({ gameId }: { gameId: string }) {
         credentials: 'include',
         body: JSON.stringify({ message: input.trim() }),
       })
+      if (!res.ok) throw new Error('Send failed')
       setInput('')
     } catch {
       // Show inline feedback

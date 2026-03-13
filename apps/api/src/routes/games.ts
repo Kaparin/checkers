@@ -606,7 +606,7 @@ gameRoutes.post('/:id/draw-accept', requireAuth, async (c) => {
     })
   }
 
-  broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, reason: 'draw' })
+  broadcastToGame(gameId, { type: WS_EVENTS.GAME_OVER, winner: null, reason: 'draw' })
   return c.json({ game: updated })
 })
 
