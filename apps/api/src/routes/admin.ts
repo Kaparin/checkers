@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, sql, desc, count, and, lt, gt, inArray } from 'drizzle-orm'
+import { eq, sql, desc, count, and, lt, gt, inArray, ilike, or } from 'drizzle-orm'
 import { requireAdmin } from '../middleware/admin'
 import { games, users, vaultBalances, treasuryLedger, relayerTransactions, txEvents, platformConfig, events, announcements } from '@checkers/db'
 import type { Db } from '@checkers/db'
@@ -62,7 +62,7 @@ adminRoutes.get('/users', async (c) => {
 
   const base = db.select().from(users)
   const result = search
-    ? await base.where(sql`${users.address} ILIKE ${'%' + search + '%'} OR ${users.username} ILIKE ${'%' + search + '%'}`)
+    ? await base.where(or(ilike(users.address, `%${search}%`), ilike(users.username, `%${search}%`)))
         .orderBy(desc(users.createdAt)).limit(limit).offset(offset)
     : await base.orderBy(desc(users.createdAt)).limit(limit).offset(offset)
 
@@ -96,26 +96,40 @@ adminRoutes.post('/users/:address/balance', async (c) => {
     return c.json({ error: 'amount, type, and reason are required' }, 400)
   }
 
-  const amt = BigInt(body.amount)
+  let amt: bigint
+  try {
+    amt = BigInt(body.amount)
+  } catch {
+    return c.json({ error: 'amount must be a valid number string' }, 400)
+  }
   if (amt <= 0n) return c.json({ error: 'amount must be positive' }, 400)
 
-  // Upsert vault balance
-  const [existing] = await db.select().from(vaultBalances).where(eq(vaultBalances.address, address))
-  const current = BigInt(existing?.available ?? '0')
-  const newBalance = body.type === 'credit' ? current + amt : current - amt
-  if (newBalance < 0n) return c.json({ error: 'Insufficient balance' }, 400)
-
-  if (existing) {
-    await db.update(vaultBalances).set({
-      available: newBalance.toString(),
+  // Atomic vault balance update
+  if (body.type === 'debit') {
+    // Debit: use WHERE to prevent negative balance (race-safe)
+    const updated = await db.update(vaultBalances).set({
+      available: sql`(${vaultBalances.available}::numeric - ${body.amount}::numeric)::text`,
       updatedAt: new Date(),
-    }).where(eq(vaultBalances.address, address))
+    }).where(
+      sql`${vaultBalances.address} = ${address} AND ${vaultBalances.available}::numeric >= ${body.amount}::numeric`
+    ).returning()
+    if (updated.length === 0) return c.json({ error: 'Insufficient balance' }, 400)
   } else {
-    await db.insert(vaultBalances).values({
-      address,
-      available: newBalance.toString(),
-    })
+    // Credit: upsert is safe
+    await db
+      .insert(vaultBalances)
+      .values({ address, available: body.amount })
+      .onConflictDoUpdate({
+        target: vaultBalances.address,
+        set: {
+          available: sql`(${vaultBalances.available}::numeric + ${body.amount}::numeric)::text`,
+          updatedAt: new Date(),
+        },
+      })
   }
+
+  const [updated] = await db.select().from(vaultBalances).where(eq(vaultBalances.address, address))
+  const newBalance = updated?.available ?? '0'
 
   await db.insert(txEvents).values({
     action: 'admin_action',
@@ -154,7 +168,7 @@ adminRoutes.get('/games/stuck', async (c) => {
 
   const stuck = await db.select().from(games).where(
     and(
-      inArray(games.status, ['waiting', 'playing']),
+      inArray(games.status, ['waiting', 'playing', 'ready_check']),
       lt(games.createdAt, fiveMinAgo),
     )
   ).orderBy(desc(games.createdAt))
@@ -248,7 +262,7 @@ adminRoutes.get('/diagnostics', async (c) => {
     db.select({ status: games.status, count: count() }).from(games).groupBy(games.status),
     db.select({ count: count() }).from(games).where(
       and(
-        inArray(games.status, ['waiting', 'playing']),
+        inArray(games.status, ['waiting', 'playing', 'ready_check']),
         lt(games.createdAt, fiveMinAgo),
       )
     ),

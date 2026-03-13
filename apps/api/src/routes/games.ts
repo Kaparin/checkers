@@ -294,11 +294,17 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
   if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
 
   // Parse game state
-  const parsed = parseRawGameState(game.gameState)
-  const stateStr = typeof game.gameState === 'string' ? game.gameState : JSON.stringify(game.gameState)
-  const state: GameState = parsed.b && typeof parsed.b === 'string'
-    ? deserializeGameState(stateStr)
-    : parsed as unknown as GameState
+  let state: GameState
+  try {
+    const parsed = parseRawGameState(game.gameState)
+    const stateStr = typeof game.gameState === 'string' ? game.gameState : JSON.stringify(game.gameState)
+    state = parsed.b && typeof parsed.b === 'string'
+      ? deserializeGameState(stateStr)
+      : parsed as unknown as GameState
+  } catch (err) {
+    console.error(`[move] Failed to parse gameState for ${gameId}:`, err)
+    return c.json({ error: 'Corrupted game state' }, 500)
+  }
 
   const currentPlayer = state.currentTurn === 'black' ? game.blackPlayer : game.whitePlayer
   if (currentPlayer !== address) return c.json({ error: 'Not your turn' }, 403)

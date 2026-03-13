@@ -128,10 +128,23 @@ export class JackpotService {
   /** Get all active pools with tier info */
   async getActivePools() {
     const tiers = await this.db.select().from(jackpotTiers).where(eq(jackpotTiers.enabled, true))
+    if (tiers.length === 0) return []
+
+    // Fetch all active pools in one query (instead of N+1)
+    const activePools = await this.db
+      .select()
+      .from(jackpotPools)
+      .where(eq(jackpotPools.status, 'active'))
+
+    const poolMap = new Map(activePools.map(p => [p.tier, p]))
     const pools = []
 
     for (const tier of tiers) {
-      const pool = await this.getActivePool(tier.tier)
+      let pool = poolMap.get(tier.tier)
+      if (!pool) {
+        // Create missing pool (rare — only on first launch)
+        pool = await this.getActivePool(tier.tier)
+      }
       pools.push({
         tier: tier.tier,
         name: tier.name,
