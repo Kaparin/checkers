@@ -22,7 +22,23 @@
       "Bash(cd E:/Work/checkers && npx drizzle-kit generate --config packages/db/drizzle.config.ts 2>&1 | tail -20)",
       "Bash(cd E:/Work/checkers/packages/db && npx drizzle-kit generate 2>&1 | tail -20)",
       "Bash(cd E:/Work/checkers/packages/db && npx drizzle-kit push --force 2>&1 | tail -20)",
-      "Bash(cd \"E:/Work/checkers\" && npx tsx check-columns.ts)"
+      "Bash(cd \"E:/Work/checkers\" && npx tsx check-columns.ts)",
+      "Bash(find /e/Work/checkers -name \"wallet-context*\" -type f 2>/dev/null | head -5)",
+      "Bash(find \"E:\\\\Work\\\\checkers\\\\apps\\\\web\" -name \"page.tsx\" -o -name \"tailwind.config.*\" -o -name \"layout.tsx\" 2>/dev/null | head -20)",
+      "Bash(find \"E:\\\\Work\\\\checkers\\\\apps\\\\web\" -maxdepth 1 -type f -name \"*.ts\" -o -name \"*.js\" 2>/dev/null | grep -E \"\\(config|tailwind\\)\" | head -10)",
+      "Bash(grep -rn \"status === 'ready_check'\\\\|status === 'waiting'\\\\|status === 'playing'\\\\|status === 'finished'\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx 2>/dev/null)",
+      "Bash(grep -rn \"msg.type ===\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx 2>/dev/null | head -20)",
+      "Bash(grep -rn \"txHash\\\\|transaction\\\\|blockchain\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx 2>/dev/null)",
+      "Bash(find /e/Work/checkers -name \"*.ts\" -o -name \"*.tsx\" | xargs grep -l \"type GameState\\\\|interface GameState\" 2>/dev/null | head -3)",
+      "Bash(find \"E:\\\\Work\\\\checkers\\\\apps\\\\web\\\\src\" -name \"*.config.*\" -o -name \"tailwind*\" 2>/dev/null | head -10)",
+      "Bash(grep -r \"theme\" \"E:\\\\Work\\\\checkers\\\\apps\\\\web\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.json\" 2>/dev/null | grep -i \"config\\\\|tailwind\" | head -20)",
+      "Bash(grep -rn \"metadata\\\\|viewport\\\\|charset\\\\|viewport\" \"E:\\\\Work\\\\checkers\\\\apps\\\\web\\\\src\\\\app\" --include=\"*.tsx\" --include=\"*.ts\" 2>/dev/null | head -20)",
+      "Bash(grep -rn \"GameState\\\\|SerializedMove\\\\|GameStatus\" \"E:\\\\Work\\\\checkers\\\\packages\\\\db\\\\src\" --include=\"*.ts\" 2>/dev/null | head -30)",
+      "Bash(ls -la /e/Work/checkers/apps/web/src/app/\\\\\\(main\\\\\\)/)",
+      "Bash(find /e/Work/checkers/packages/db/src/schema -type f -name \"*.ts\" 2>/dev/null | head -20)",
+      "Bash(find /e/Work/checkers -name \"*.ts\" -type f | xargs grep -l \"timeout\\\\|cron\\\\|worker\\\\|schedule\" | head -15)",
+      "Bash(grep -r \"sm:\\\\|md:\\\\|lg:\\\\|mobile\\\\|responsive\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx | head -20)",
+      "Bash(grep -n \"ARIA\\\\|aria-\\\\|role=\\\\|alt=\\\\|tabIndex\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx)"
     ]
   },
   "outputStyle": "default"
