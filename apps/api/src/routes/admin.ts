@@ -61,8 +61,10 @@ adminRoutes.get('/users', async (c) => {
   const search = c.req.query('search')
 
   const base = db.select().from(users)
-  const result = search
-    ? await base.where(or(ilike(users.address, `%${search}%`), ilike(users.username, `%${search}%`)))
+  // Escape LIKE special characters to prevent wildcard injection
+  const escapedSearch = search?.replace(/[%_\\]/g, '\\$&')
+  const result = escapedSearch
+    ? await base.where(or(ilike(users.address, `%${escapedSearch}%`), ilike(users.username, `%${escapedSearch}%`)))
         .orderBy(desc(users.createdAt)).limit(limit).offset(offset)
     : await base.orderBy(desc(users.createdAt)).limit(limit).offset(offset)
 

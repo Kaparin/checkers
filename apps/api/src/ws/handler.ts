@@ -1,10 +1,12 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'http'
 import type { Db } from '@checkers/db'
-import { games, users } from '@checkers/db'
+import { games, users, vaultBalances } from '@checkers/db'
 import { WsMessageSchema, WS_EVENTS, calculateElo } from '@checkers/shared'
 import { eq, sql } from 'drizzle-orm'
 import { verifySessionToken } from '../services/session.service'
+import { TreasuryService } from '../services/treasury.service'
+import { ReferralService } from '../services/referral.service'
 
 interface ConnectedClient {
   ws: WebSocket
@@ -160,6 +162,11 @@ export function setupWebSocket(server: Server, db: Db) {
 
                 // Fetch ELO BEFORE updating stats (K-factor depends on gamesPlayed)
                 if (winner) {
+                  const wagerNum = BigInt(game.wager)
+                  const commissionPct = 10 // TODO: read from ConfigService
+                  const commission = String(wagerNum * 2n * BigInt(commissionPct) / 100n)
+                  const payout = String(wagerNum * 2n - BigInt(commission))
+
                   let eloChange = { newRatingWinner: 1200, newRatingLoser: 1200 }
                   const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
                   const [loserUser] = await db.select().from(users).where(eq(users.address, address)).limit(1)
@@ -167,15 +174,35 @@ export function setupWebSocket(server: Server, db: Db) {
                     eloChange = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
                   }
 
+                  // Credit winner vault balance (payout after commission)
+                  await db
+                    .insert(vaultBalances)
+                    .values({ address: winner, available: payout })
+                    .onConflictDoUpdate({
+                      target: vaultBalances.address,
+                      set: {
+                        available: sql`(${vaultBalances.available}::numeric + ${payout}::numeric)::text`,
+                        updatedAt: new Date(),
+                      },
+                    })
+
                   await db.update(users).set({
                     gamesPlayed: sql`games_played + 1`, gamesWon: sql`games_won + 1`,
-                    totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+                    totalWon: sql`(total_won::bigint + ${payout}::bigint)::text`,
+                    totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
                     elo: eloChange.newRatingWinner,
                   }).where(eq(users.address, winner))
                   await db.update(users).set({
                     gamesPlayed: sql`games_played + 1`, gamesLost: sql`games_lost + 1`,
+                    totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
                     elo: eloChange.newRatingLoser,
                   }).where(eq(users.address, address))
+
+                  // Record commission + referral rewards
+                  const treasury = new TreasuryService(db)
+                  await treasury.recordCommission(commission, gameId)
+                  const referrals = new ReferralService(db)
+                  await referrals.distributeRewards(winner, commission, gameId)
                 }
 
                 broadcastToGame(gameId, {

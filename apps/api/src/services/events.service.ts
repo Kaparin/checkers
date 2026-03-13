@@ -36,14 +36,6 @@ export class EventsService {
     const [event] = await this.db.select().from(events).where(eq(events.id, eventId)).limit(1)
     if (!event || (event.status !== 'upcoming' && event.status !== 'active')) return false
 
-    // Check already joined
-    const [existing] = await this.db
-      .select()
-      .from(eventParticipants)
-      .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.address, address)))
-      .limit(1)
-    if (existing) return false
-
     // Check max participants
     if (event.maxParticipants) {
       const count = await this.db
@@ -53,8 +45,15 @@ export class EventsService {
       if (count[0].count >= event.maxParticipants) return false
     }
 
-    await this.db.insert(eventParticipants).values({ eventId, address })
-    return true
+    // Insert with conflict guard (race-safe: duplicate eventId+address will fail silently)
+    try {
+      await this.db.insert(eventParticipants).values({ eventId, address })
+      return true
+    } catch (err: any) {
+      // Unique violation (already joined) — treat as success-no-op
+      if (err?.code === '23505') return false
+      throw err
+    }
   }
 
   /** Get active announcements */

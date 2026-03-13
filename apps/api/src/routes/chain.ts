@@ -10,15 +10,24 @@ import { Hono } from 'hono'
 import { AXIOME_REST, AXIOME_DENOM } from '@checkers/shared/chain'
 import { relayer } from '../services/relayer'
 import { requireAuth } from '../middleware/auth'
+import { txEvents } from '@checkers/db'
+import type { Db } from '@checkers/db'
+import { eq, and, sql } from 'drizzle-orm'
 
 export const chainRoutes = new Hono()
 
-// Track funded addresses to prevent abuse (in-memory, resets on restart)
-const fundedAddresses = new Set<string>()
+// In-memory cache to avoid repeated DB lookups (warm cache)
+const fundedCache = new Set<string>()
 
 // Get balance for an address
 chainRoutes.get('/balance/:address', async (c) => {
   const address = c.req.param('address')
+
+  // Basic address format validation
+  if (!address || !address.startsWith('axm1') || address.length < 20) {
+    return c.json({ amount: '0', denom: AXIOME_DENOM })
+  }
+
   try {
     const res = await fetch(`${AXIOME_REST}/cosmos/bank/v1beta1/balances/${address}`)
     if (!res.ok) return c.json({ amount: '0', denom: AXIOME_DENOM })
@@ -64,11 +73,28 @@ chainRoutes.get('/authz/:address', async (c) => {
 })
 
 // Gas faucet — send small AXM amount to authenticated user for authz grant gas.
-// One-time per address. Relayer sends from its own balance.
+// One-time per address. Persisted to DB to survive restarts.
 chainRoutes.post('/fund-gas', requireAuth, async (c) => {
+  const db = c.get('db' as never) as Db
   const address = c.get('address' as never) as string
 
-  if (fundedAddresses.has(address)) {
+  // Fast path: check in-memory cache first
+  if (fundedCache.has(address)) {
+    return c.json({ error: 'Already funded' }, 400)
+  }
+
+  // Check DB for previous faucet claim (survives restarts)
+  const [existing] = await db
+    .select({ id: txEvents.id })
+    .from(txEvents)
+    .where(and(
+      eq(txEvents.address, address),
+      sql`${txEvents.details} LIKE 'gas_faucet%'`,
+    ))
+    .limit(1)
+
+  if (existing) {
+    fundedCache.add(address) // warm cache
     return c.json({ error: 'Already funded' }, 400)
   }
 
@@ -79,7 +105,15 @@ chainRoutes.post('/fund-gas', requireAuth, async (c) => {
   try {
     // Send 0.1 AXM (100000 uaxm) — enough for ~4 authz grant txs
     const txHash = await relayer.sendGas(address, '100000')
-    fundedAddresses.add(address)
+
+    // Persist to DB for durability
+    await db.insert(txEvents).values({
+      action: 'deposit' as any,
+      address,
+      details: `gas_faucet: ${txHash}`,
+    })
+
+    fundedCache.add(address)
     console.log(`[faucet] Sent 0.1 AXM to ${address.slice(0, 12)}... tx=${txHash.slice(0, 12)}...`)
     return c.json({ txHash, amount: '100000', denom: 'uaxm' })
   } catch (err: any) {

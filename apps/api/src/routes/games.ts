@@ -365,6 +365,7 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
       gamesPlayed: sql`games_played + 1`,
       gamesWon: sql`games_won + 1`,
       totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+      totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
       elo: eloChange.newRatingWinner,
     }).where(eq(users.address, winner))
 
@@ -490,10 +491,14 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
       const elo = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
       await db.update(users).set({
         gamesPlayed: sql`games_played + 1`, gamesWon: sql`games_won + 1`,
-        totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`, elo: elo.newRatingWinner,
+        totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+        totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
+        elo: elo.newRatingWinner,
       }).where(eq(users.address, winner))
       await db.update(users).set({
-        gamesPlayed: sql`games_played + 1`, gamesLost: sql`games_lost + 1`, elo: elo.newRatingLoser,
+        gamesPlayed: sql`games_played + 1`, gamesLost: sql`games_lost + 1`,
+        totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
+        elo: elo.newRatingLoser,
       }).where(eq(users.address, address))
     }
 

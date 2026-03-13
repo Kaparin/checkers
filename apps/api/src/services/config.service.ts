@@ -19,20 +19,26 @@ const DEFAULTS: Record<string, { value: string; category: string; description: s
 
 export class ConfigService {
   private cache = new Map<string, string>()
-  private loaded = false
+  private loadedAt = 0
+  private static CACHE_TTL_MS = 60_000 // 1 minute TTL
 
   constructor(private db: Db) {}
 
   async loadAll(): Promise<void> {
     const rows = await this.db.select().from(platformConfig)
+    this.cache.clear()
     for (const row of rows) {
       this.cache.set(row.key, row.value)
     }
-    this.loaded = true
+    this.loadedAt = Date.now()
+  }
+
+  private get isStale(): boolean {
+    return this.loadedAt === 0 || Date.now() - this.loadedAt > ConfigService.CACHE_TTL_MS
   }
 
   async get(key: string): Promise<string> {
-    if (!this.loaded) await this.loadAll()
+    if (this.isStale) await this.loadAll()
     return this.cache.get(key) ?? DEFAULTS[key]?.value ?? ''
   }
 
@@ -64,7 +70,8 @@ export class ConfigService {
   }
 
   async getAll(): Promise<Record<string, { value: string; category: string; description: string | null }>> {
-    if (!this.loaded) await this.loadAll()
+    // Always reload for admin view to get fresh data
+    await this.loadAll()
 
     const result: Record<string, { value: string; category: string; description: string | null }> = {}
 
@@ -77,13 +84,10 @@ export class ConfigService {
       }
     }
 
-    // Add any custom keys from DB
-    const rows = await this.db.select().from(platformConfig)
-    for (const row of rows) {
-      result[row.key] = {
-        value: row.value,
-        category: row.category,
-        description: row.description,
+    // Add any custom keys from cache (already loaded from DB)
+    for (const [key, value] of this.cache) {
+      if (!result[key]) {
+        result[key] = { value, category: 'general', description: null }
       }
     }
 
@@ -91,16 +95,19 @@ export class ConfigService {
   }
 
   async seedDefaults(): Promise<void> {
-    for (const [key, def] of Object.entries(DEFAULTS)) {
-      const exists = await this.db.select().from(platformConfig).where(eq(platformConfig.key, key))
-      if (exists.length === 0) {
-        await this.db.insert(platformConfig).values({
-          key,
-          value: def.value,
-          category: def.category as 'general' | 'wager' | 'commission' | 'timeout' | 'maintenance',
-          description: def.description,
-        })
-      }
+    const values = Object.entries(DEFAULTS).map(([key, def]) => ({
+      key,
+      value: def.value,
+      category: def.category as 'general' | 'wager' | 'commission' | 'timeout' | 'maintenance',
+      description: def.description,
+    }))
+
+    // Batch upsert: insert all defaults, skip on conflict
+    for (const val of values) {
+      await this.db
+        .insert(platformConfig)
+        .values(val)
+        .onConflictDoNothing({ target: platformConfig.key })
     }
     await this.loadAll()
   }

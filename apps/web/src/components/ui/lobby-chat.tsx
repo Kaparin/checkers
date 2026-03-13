@@ -46,7 +46,10 @@ export function LobbyChat() {
     const unsub = subscribe((msg) => {
       if (msg.type === 'chat:global' && msg.message) {
         const m = msg.message as ChatMessage
-        setMessages(prev => [...prev, m])
+        setMessages(prev => {
+          const next = [...prev, m]
+          return next.length > 200 ? next.slice(-200) : next
+        })
         if (!isOpen) setUnread(u => u + 1)
       }
     })

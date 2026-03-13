@@ -67,6 +67,7 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
             gamesPlayed: sql`games_played + 1`,
             gamesWon: sql`games_won + 1`,
             totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+            totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
             elo: eloChange.newRatingWinner,
           }).where(eq(users.address, winner))
         }
@@ -74,6 +75,7 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
           await db.update(users).set({
             gamesPlayed: sql`games_played + 1`,
             gamesLost: sql`games_lost + 1`,
+            totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
             elo: eloChange.newRatingLoser,
           }).where(eq(users.address, loser))
         }

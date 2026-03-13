@@ -17,10 +17,17 @@ export function useNavigationBlock(shouldBlock: boolean) {
   }, [shouldBlock])
 
   // Block browser back button
+  const historyPushed = useRef(false)
   useEffect(() => {
-    if (!shouldBlock) return
-    // Push a dummy state so popstate fires on back
-    window.history.pushState({ blocked: true }, '')
+    if (!shouldBlock) {
+      historyPushed.current = false
+      return
+    }
+    // Push a dummy state so popstate fires on back (only once)
+    if (!historyPushed.current) {
+      window.history.pushState({ blocked: true }, '')
+      historyPushed.current = true
+    }
     const handler = () => {
       // Re-push to keep the user on the page
       window.history.pushState({ blocked: true }, '')
