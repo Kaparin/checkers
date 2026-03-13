@@ -60,9 +60,10 @@ export async function logout() {
 
 // ── Games ────────────────────────────────────────────────────────────
 
-export async function listGames(status?: string, limit = 20, offset = 0) {
+export async function listGames(status?: string, limit = 20, offset = 0, player?: string) {
   const params = new URLSearchParams()
   if (status) params.set('status', status)
+  if (player) params.set('player', player)
   params.set('limit', String(limit))
   params.set('offset', String(offset))
   return request<{ games: GameListItem[] }>(`/games?${params}`)

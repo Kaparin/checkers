@@ -19,6 +19,14 @@ function isRateLimited(address: string): boolean {
   return false
 }
 
+// Cleanup stale rate-limit entries every 5 minutes to prevent memory leak
+setInterval(() => {
+  const cutoff = Date.now() - 60_000
+  for (const [addr, ts] of lastSent) {
+    if (ts < cutoff) lastSent.delete(addr)
+  }
+}, 300_000)
+
 // Send game chat message
 chatRoutes.post('/game/:gameId', requireAuth, async (c) => {
   const db = c.get('db' as never) as Db

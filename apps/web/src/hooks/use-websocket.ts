@@ -12,6 +12,7 @@ export function useWebSocket(gameId?: string) {
   const handlersRef = useRef<Set<MessageHandler>>(new Set<MessageHandler>())
   const [connected, setConnected] = useState(false)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnectAttempt = useRef(0)
 
   const connect = useCallback(() => {
@@ -31,6 +32,14 @@ export function useWebSocket(gameId?: string) {
         if (gameId) {
           ws.send(JSON.stringify({ type: 'join_game', gameId }))
         }
+
+        // Keepalive ping every 25s to prevent proxy/firewall timeouts
+        if (pingTimer.current) clearInterval(pingTimer.current)
+        pingTimer.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }))
+          }
+        }, 25_000)
       }
 
       ws.onmessage = (event) => {
@@ -47,6 +56,7 @@ export function useWebSocket(gameId?: string) {
       ws.onclose = () => {
         setConnected(false)
         wsRef.current = null
+        if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null }
 
         // Exponential backoff reconnect (max 50 attempts)
         if (reconnectAttempt.current < 50) {
@@ -70,6 +80,7 @@ export function useWebSocket(gameId?: string) {
     connect()
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      if (pingTimer.current) clearInterval(pingTimer.current)
       wsRef.current?.close()
       wsRef.current = null
     }

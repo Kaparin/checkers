@@ -16,14 +16,10 @@ export default function ProfilePage() {
     setLoading(true)
     Promise.all([
       getUserProfile(address).catch(() => null),
-      listGames('finished', 10).catch(() => ({ games: [] })),
+      listGames('finished', 10, 0, address).catch(() => ({ games: [] })),
     ]).then(([profileRes, gamesRes]) => {
       if (profileRes) setProfile(profileRes.user)
-      setRecentGames(
-        (gamesRes?.games || []).filter(
-          (g: GameListItem) => g.blackPlayer === address || g.whitePlayer === address
-        ).slice(0, 10)
-      )
+      setRecentGames(gamesRes?.games || [])
     }).finally(() => setLoading(false))
   }, [address])
 

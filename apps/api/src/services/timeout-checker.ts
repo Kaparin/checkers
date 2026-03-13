@@ -1,4 +1,4 @@
-import { lt, eq } from 'drizzle-orm'
+import { lt, eq, and, isNotNull } from 'drizzle-orm'
 import { games, users, txEvents, treasuryLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { broadcastToGame } from '../ws/handler'
@@ -17,13 +17,14 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
     try {
       const now = new Date()
 
-      // Find playing games past their deadline
+      // Find playing games past their deadline (DB-level filter)
       const timedOut = await db
         .select()
         .from(games)
-        .where(eq(games.status, 'playing'))
-        .then(rows => rows.filter(g =>
-          g.currentTurnDeadline && new Date(g.currentTurnDeadline) < now
+        .where(and(
+          eq(games.status, 'playing'),
+          isNotNull(games.currentTurnDeadline),
+          lt(games.currentTurnDeadline, now),
         ))
 
       for (const game of timedOut) {
@@ -50,30 +51,31 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
           currentTurnDeadline: null,
         }).where(eq(games.id, game.id))
 
-        // Update stats
+        // Fetch current ELO BEFORE updating stats (K-factor depends on gamesPlayed)
+        let eloChange = { newRatingWinner: 1200, newRatingLoser: 1200 }
+        if (winner && loser) {
+          const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
+          const [loserUser] = await db.select().from(users).where(eq(users.address, loser)).limit(1)
+          if (winnerUser && loserUser) {
+            eloChange = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
+          }
+        }
+
+        // Update stats + ELO together
         if (winner) {
           await db.update(users).set({
             gamesPlayed: sql`games_played + 1`,
             gamesWon: sql`games_won + 1`,
             totalWon: sql`(total_won::bigint + ${game.wager}::bigint)::text`,
+            elo: eloChange.newRatingWinner,
           }).where(eq(users.address, winner))
         }
         if (loser) {
           await db.update(users).set({
             gamesPlayed: sql`games_played + 1`,
             gamesLost: sql`games_lost + 1`,
+            elo: eloChange.newRatingLoser,
           }).where(eq(users.address, loser))
-        }
-
-        // ELO update on timeout
-        if (winner && loser) {
-          const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
-          const [loserUser] = await db.select().from(users).where(eq(users.address, loser)).limit(1)
-          if (winnerUser && loserUser) {
-            const elo = calculateElo(winnerUser.elo, loserUser.elo, winnerUser.gamesPlayed, loserUser.gamesPlayed)
-            await db.update(users).set({ elo: elo.newRatingWinner }).where(eq(users.address, winner))
-            await db.update(users).set({ elo: elo.newRatingLoser }).where(eq(users.address, loser))
-          }
         }
 
         // Record commission + referral rewards

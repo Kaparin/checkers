@@ -4,7 +4,7 @@ import { CreateGameSchema, MakeMoveSchema, GameListSchema } from '@checkers/shar
 import { createInitialGameState, isValidMove, applyMove, serializeGameState, deserializeGameState, calculateElo, calculateEloDraw } from '@checkers/shared'
 import { games, gameMoves, users, txEvents, treasuryLedger, stakingLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
-import { eq, desc, sql, inArray } from 'drizzle-orm'
+import { eq, desc, sql, inArray, or, and } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
@@ -74,16 +74,21 @@ function fireAndForget(label: string, fn: () => Promise<unknown>) {
 
 // List games (public)
 gameRoutes.get('/', zValidator('query', GameListSchema), async (c) => {
-  const { status, limit, offset } = c.req.valid('query')
+  const { status, player, limit, offset } = c.req.valid('query')
   const db = c.get('db' as never) as Db
 
-  let statusFilter
+  const conditions = []
+
   if (status === 'waiting') {
-    statusFilter = eq(games.status, 'waiting')
+    conditions.push(eq(games.status, 'waiting'))
   } else if (status === 'playing') {
-    statusFilter = inArray(games.status, ['playing', 'ready_check'])
+    conditions.push(inArray(games.status, ['playing', 'ready_check']))
   } else if (status === 'finished') {
-    statusFilter = inArray(games.status, ['black_wins', 'white_wins', 'draw', 'timeout'])
+    conditions.push(inArray(games.status, ['black_wins', 'white_wins', 'draw', 'timeout']))
+  }
+
+  if (player) {
+    conditions.push(or(eq(games.blackPlayer, player), eq(games.whitePlayer, player)))
   }
 
   const rows = await db
@@ -102,7 +107,7 @@ gameRoutes.get('/', zValidator('query', GameListSchema), async (c) => {
       finishedAt: games.finishedAt,
     })
     .from(games)
-    .where(statusFilter)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(games.createdAt))
     .limit(limit)
     .offset(offset)
@@ -444,6 +449,19 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
     return c.json({ error: 'You are not in this game' }, 403)
   }
 
+  // During ready_check, resign = cancel (no wagers locked on-chain yet)
+  if (game.status === 'ready_check') {
+    const [updated] = await db.update(games).set({
+      status: 'canceled',
+      finishedAt: new Date(),
+    }).where(eq(games.id, gameId)).returning()
+
+    logEvent(db, 'resign_ready_check', address, gameId)
+    broadcastToGame(gameId, { type: WS_EVENTS.GAME_CANCELED, reason: 'resign' })
+    broadcastToLobby({ type: WS_EVENTS.GAME_CANCELED, gameId })
+    return c.json({ game: updated })
+  }
+
   const winner = address === game.blackPlayer ? game.whitePlayer : game.blackPlayer
   const winStatus = address === game.blackPlayer ? 'white_wins' : 'black_wins'
 
@@ -559,7 +577,15 @@ gameRoutes.post('/:id/rematch-decline', requireAuth, async (c) => {
 // Draw offer
 gameRoutes.post('/:id/draw-offer', requireAuth, async (c) => {
   const address = c.get('address' as never) as string
+  const db = c.get('db' as never) as Db
   const gameId = c.req.param('id') as string
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId)).limit(1)
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (game.status !== 'playing') return c.json({ error: 'Game is not in progress' }, 400)
+  if (game.blackPlayer !== address && game.whitePlayer !== address) {
+    return c.json({ error: 'You are not in this game' }, 403)
+  }
 
   broadcastToGame(gameId, { type: 'draw:offer', from: address })
   return c.json({ success: true })
@@ -592,9 +618,11 @@ gameRoutes.post('/:id/draw-accept', requireAuth, async (c) => {
       const elo = calculateEloDraw(blackUser.elo, whiteUser.elo, blackUser.gamesPlayed, whiteUser.gamesPlayed)
       await db.update(users).set({
         gamesPlayed: sql`games_played + 1`, gamesDraw: sql`games_draw + 1`, elo: elo.newRatingA,
+        totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
       }).where(eq(users.address, game.blackPlayer))
       await db.update(users).set({
         gamesPlayed: sql`games_played + 1`, gamesDraw: sql`games_draw + 1`, elo: elo.newRatingB,
+        totalWagered: sql`(total_wagered::bigint + ${game.wager}::bigint)::text`,
       }).where(eq(users.address, game.whitePlayer))
     }
   }

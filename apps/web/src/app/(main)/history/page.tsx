@@ -37,6 +37,7 @@ export default function HistoryPage() {
         <div className="space-y-3">
           {games.map(game => {
             const iWon = game.winner === address
+            const isDraw = game.status === 'draw'
             const isMyGame = game.blackPlayer === address || game.whitePlayer === address
             const wager = (Number(game.wager) / 1_000_000).toFixed(0)
 
@@ -49,9 +50,10 @@ export default function HistoryPage() {
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                     !isMyGame ? 'bg-bg-subtle text-text-muted' :
+                    isDraw ? 'bg-warning/10 text-warning' :
                     iWon ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
                   }`}>
-                    {!isMyGame ? '-' : iWon ? 'П' : 'Р'}
+                    {!isMyGame ? '-' : isDraw ? '=' : iWon ? 'П' : 'Р'}
                   </div>
                   <div>
                     <p className="text-sm font-medium">
