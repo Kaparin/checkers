@@ -2,11 +2,12 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'http'
 import type { Db } from '@checkers/db'
 import { games, users, vaultBalances } from '@checkers/db'
-import { WsMessageSchema, WS_EVENTS, calculateElo } from '@checkers/shared'
-import { eq, sql } from 'drizzle-orm'
+import { WsMessageSchema, WS_EVENTS, calculateElo, calcCommission } from '@checkers/shared'
+import { eq, and, sql } from 'drizzle-orm'
 import { verifySessionToken } from '../services/session.service'
 import { TreasuryService } from '../services/treasury.service'
 import { ReferralService } from '../services/referral.service'
+import { relayer } from '../services/relayer'
 
 interface ConnectedClient {
   ws: WebSocket
@@ -66,18 +67,19 @@ export function setupWebSocket(server: Server, db: Db) {
           gameRooms.get(msg.gameId)!.add(ws)
           lobbyClients.delete(ws)
 
-          // Feature 11: Cancel disconnect timer on reconnect
+          // Cancel any disconnect timer for this player (any game)
           if (client.address) {
-            const timerKey = `${msg.gameId}:${client.address}`
-            const existingTimer = disconnectTimers.get(timerKey)
-            if (existingTimer) {
-              clearTimeout(existingTimer)
-              disconnectTimers.delete(timerKey)
-              // Notify room that player reconnected
-              broadcastToGame(msg.gameId, {
-                type: WS_EVENTS.PLAYER_CONNECTED,
-                address: client.address,
-              })
+            for (const [key, timer] of disconnectTimers) {
+              if (key.endsWith(`:${client.address}`)) {
+                clearTimeout(timer)
+                disconnectTimers.delete(key)
+                // Extract gameId from key and notify reconnection
+                const timerGameId = key.split(':').slice(0, -1).join(':')
+                broadcastToGame(timerGameId, {
+                  type: WS_EVENTS.PLAYER_CONNECTED,
+                  address: client.address,
+                })
+              }
             }
           }
           return
@@ -153,19 +155,19 @@ export function setupWebSocket(server: Server, db: Db) {
                 const winner = address === game.blackPlayer ? game.whitePlayer : game.blackPlayer
                 const winStatus = address === game.blackPlayer ? 'white_wins' : 'black_wins'
 
-                await db.update(games).set({
+                // Atomic status transition: only proceed if still 'playing'
+                const [resolved] = await db.update(games).set({
                   status: winStatus,
                   winner,
                   finishedAt: new Date(),
                   currentTurnDeadline: null,
-                }).where(eq(games.id, gameId))
+                }).where(and(eq(games.id, gameId), eq(games.status, 'playing'))).returning()
+
+                if (!resolved) return // Already resolved by timeout/resign
 
                 // Fetch ELO BEFORE updating stats (K-factor depends on gamesPlayed)
                 if (winner) {
-                  const wagerNum = BigInt(game.wager)
-                  const commissionPct = 10 // TODO: read from ConfigService
-                  const commission = String(wagerNum * 2n * BigInt(commissionPct) / 100n)
-                  const payout = String(wagerNum * 2n - BigInt(commission))
+                  const { commission, payout } = calcCommission(game.wager)
 
                   let eloChange = { newRatingWinner: 1200, newRatingLoser: 1200 }
                   const [winnerUser] = await db.select().from(users).where(eq(users.address, winner)).limit(1)
@@ -203,6 +205,16 @@ export function setupWebSocket(server: Server, db: Db) {
                   await treasury.recordCommission(commission, gameId)
                   const referrals = new ReferralService(db)
                   await referrals.distributeRewards(winner, commission, gameId)
+
+                  // Resolve on-chain — release locked wagers to winner
+                  if (relayer.isReady && game.onChainGameId && game.wager !== '0') {
+                    relayer.relayResolveGame(game.onChainGameId, winner)
+                      .then(txHash => {
+                        console.log(`[ws:forfeit] Game ${gameId} resolved on-chain tx=${txHash.slice(0, 12)}...`)
+                        db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId)).catch(() => {})
+                      })
+                      .catch(err => console.error(`[ws:forfeit] Relay resolve failed for ${gameId}:`, err?.message))
+                  }
                 }
 
                 broadcastToGame(gameId, {

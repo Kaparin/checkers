@@ -13,9 +13,9 @@
 
 import { StargateClient } from '@cosmjs/stargate'
 import { AXIOME_REST, AXIOME_RPC } from '@checkers/shared/chain'
-import { games } from '@checkers/db'
+import { games, platformConfig } from '@checkers/db'
 import type { Db } from '@checkers/db'
-import { eq, and, notInArray } from 'drizzle-orm'
+import { eq, and, notInArray, isNull } from 'drizzle-orm'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
 import { WS_EVENTS } from '@checkers/shared'
 
@@ -42,12 +42,19 @@ export class IndexerService {
       return
     }
 
-    // Get current block height
+    // Restore lastHeight from DB, fallback to current chain height
     try {
-      const client = await StargateClient.connect(AXIOME_RPC)
-      this.lastHeight = await client.getHeight()
-      client.disconnect()
-      console.log(`[indexer] Starting from block ${this.lastHeight}`)
+      const [saved] = await db.select().from(platformConfig)
+        .where(eq(platformConfig.key, 'indexer_last_height')).limit(1)
+      if (saved) {
+        this.lastHeight = parseInt(saved.value, 10)
+        console.log(`[indexer] Restored from DB: block ${this.lastHeight}`)
+      } else {
+        const client = await StargateClient.connect(AXIOME_RPC)
+        this.lastHeight = await client.getHeight()
+        client.disconnect()
+        console.log(`[indexer] Starting from chain height ${this.lastHeight}`)
+      }
     } catch (err) {
       console.error('[indexer] Failed to get initial height:', err)
     }
@@ -94,6 +101,18 @@ export class IndexerService {
       }
 
       this.lastHeight = endHeight
+
+      // Persist lastHeight to DB
+      if (this.db) {
+        this.db.insert(platformConfig).values({
+          key: 'indexer_last_height',
+          value: String(endHeight),
+          category: 'general',
+        }).onConflictDoUpdate({
+          target: platformConfig.key,
+          set: { value: String(endHeight), updatedAt: new Date() },
+        }).catch(err => console.error('[indexer] Failed to save height:', err?.message))
+      }
     } catch (err) {
       console.error('[indexer] Poll error:', err)
     }
@@ -163,12 +182,13 @@ export class IndexerService {
       .where(eq(games.onChainGameId, onChainGameId)).limit(1)
     if (byId) return byId
 
-    // Fallback for create_game: match by creator + waiting status (if mapping not stored yet)
+    // Fallback for create_game: match by creator + waiting status + no existing mapping
     if (creator) {
       const [byCreator] = await db.select().from(games)
         .where(and(
           eq(games.blackPlayer, creator),
           eq(games.status, 'waiting'),
+          isNull(games.onChainGameId),
         ))
         .limit(1)
       if (byCreator) {

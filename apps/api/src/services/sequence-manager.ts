@@ -60,8 +60,13 @@ export class SequenceManager {
   }
 
   /** Force set sequence (after mismatch error) */
-  forceSet(sequence: number): void {
-    this.sequence = sequence
+  async forceSet(sequence: number): Promise<void> {
+    const release = await this.acquireLock()
+    try {
+      this.sequence = sequence
+    } finally {
+      release()
+    }
   }
 
   /** Handle sequence mismatch — refresh from chain */

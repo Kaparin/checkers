@@ -14,6 +14,14 @@ export const GAME_IDLE_TIMEOUT = 300      // 5 minutes with no moves → forfeit
 // Commission
 export const COMMISSION_BPS = 1000  // 10%
 
+/** Calculate commission and payout from a wager (BigInt-safe). Returns micro-coin strings. */
+export function calcCommission(wager: string): { commission: string; payout: string } {
+  const pot = BigInt(wager) * 2n
+  const commission = pot * BigInt(COMMISSION_BPS) / 10000n
+  const payout = pot - commission
+  return { commission: String(commission), payout: String(payout) }
+}
+
 // WS event types
 export const WS_EVENTS = {
   GAME_CREATED: 'game:created',

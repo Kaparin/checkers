@@ -130,7 +130,7 @@ export class RelayerService {
             if (rawLog.includes('account sequence mismatch')) {
               const match = rawLog.match(/expected (\d+)/)
               if (match) {
-                this.sequenceManager.forceSet(parseInt(match[1], 10))
+                await this.sequenceManager.forceSet(parseInt(match[1], 10))
               } else {
                 await this.sequenceManager.handleSequenceMismatch()
               }
@@ -147,7 +147,7 @@ export class RelayerService {
           if (msg.includes('account sequence mismatch')) {
             const match = msg.match(/expected (\d+)/)
             if (match) {
-              this.sequenceManager.forceSet(parseInt(match[1], 10))
+              await this.sequenceManager.forceSet(parseInt(match[1], 10))
             } else {
               await this.sequenceManager.handleSequenceMismatch()
             }

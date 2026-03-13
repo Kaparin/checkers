@@ -7,7 +7,7 @@ import type { Db } from '@checkers/db'
 import { eq, desc, sql, inArray, or, and } from 'drizzle-orm'
 import { requireAuth } from '../middleware/auth'
 import { broadcastToGame, broadcastToLobby } from '../ws/handler'
-import { WS_EVENTS } from '@checkers/shared'
+import { WS_EVENTS, calcCommission } from '@checkers/shared'
 import { AXIOME_DENOM, AXIOME_REST } from '@checkers/shared/chain'
 import { relayer } from '../services/relayer'
 import { ReferralService } from '../services/referral.service'
@@ -26,7 +26,7 @@ function logEvent(db: Db, action: string, address?: string, gameId?: string, det
 
 /** Record commission from a resolved game + distribute referral rewards */
 function recordCommission(db: Db, wager: string, gameId: string, winnerAddress?: string, txHash?: string) {
-  const commission = String(Math.floor(Number(wager) * 2 * 0.1)) // 10% of total pot
+  const { commission } = calcCommission(wager)
   if (Number(commission) > 0) {
     db.insert(treasuryLedger).values({
       source: 'game_commission',
@@ -63,13 +63,24 @@ function parseRawGameState(raw: unknown): Record<string, unknown> {
 export const gameRoutes = new Hono()
 
 /**
- * Fire relayer call in background — never blocks the API response.
- * Errors are logged but don't affect the game flow.
+ * Fire relayer call in background with retry — never blocks the API response.
+ * Retries up to 3 times with exponential backoff (2s, 4s, 8s).
  */
-function fireAndForget(label: string, fn: () => Promise<unknown>) {
-  fn().catch(err => {
-    console.error(`[relay:${label}] Failed:`, err?.message || err)
-  })
+function fireAndForget(label: string, fn: () => Promise<unknown>, maxRetries = 3) {
+  const attempt = async (retry: number) => {
+    try {
+      await fn()
+    } catch (err: any) {
+      console.error(`[relay:${label}] Attempt ${retry + 1}/${maxRetries} failed:`, err?.message || err)
+      if (retry + 1 < maxRetries) {
+        const delay = 2000 * Math.pow(2, retry)
+        await new Promise(r => setTimeout(r, delay))
+        return attempt(retry + 1)
+      }
+      console.error(`[relay:${label}] All ${maxRetries} attempts exhausted`)
+    }
+  }
+  attempt(0)
 }
 
 // List games (public)
@@ -142,12 +153,20 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
         const balData = await balRes.json() as { balances: { denom: string; amount: string }[] }
         const axmBal = balData.balances?.find((b: { denom: string }) => b.denom === AXIOME_DENOM)
         if (axmBal && BigInt(axmBal.amount) < BigInt(wager)) {
-          return c.json({ error: 'Insufficient balance' }, 400)
+          return c.json({ error: 'Недостаточно средств для этой ставки' }, 400)
         }
       }
     } catch {
       // Chain unavailable — skip balance check
     }
+  }
+
+  // Prevent creating multiple waiting games
+  const [existing] = await db.select({ id: games.id }).from(games)
+    .where(and(eq(games.blackPlayer, address), eq(games.status, 'waiting')))
+    .limit(1)
+  if (existing) {
+    return c.json({ error: 'У вас уже есть активная игра. Отмените её перед созданием новой.' }, 400)
   }
 
   const initialState = createInitialGameState(variant as GameVariant)
@@ -193,6 +212,24 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
   if (game.status !== 'waiting') return c.json({ error: 'Game already started' }, 400)
   if (game.blackPlayer === address) return c.json({ error: 'Cannot join your own game' }, 400)
 
+  // Server-side balance check for joiner
+  if (game.wager !== '0') {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const balRes = await fetch(`${AXIOME_REST}/cosmos/bank/v1beta1/balances/${address}`, { signal: controller.signal }).finally(() => clearTimeout(timeout))
+      if (balRes.ok) {
+        const balData = await balRes.json() as { balances: { denom: string; amount: string }[] }
+        const axmBal = balData.balances?.find((b: { denom: string }) => b.denom === AXIOME_DENOM)
+        if (axmBal && BigInt(axmBal.amount) < BigInt(game.wager)) {
+          return c.json({ error: 'Недостаточно средств для этой ставки' }, 400)
+        }
+      }
+    } catch {
+      // Chain unavailable — skip balance check
+    }
+  }
+
   // Random side assignment
   const swap = Math.random() < 0.5
   const blackAddr = swap ? address : game.blackPlayer
@@ -202,6 +239,7 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
   state.s = 'ready_check'
   state.t = 'black'
 
+  // Atomic: only join if game is still 'waiting' (prevents double-join race)
   const [updated] = await db.update(games).set({
     blackPlayer: blackAddr,
     whitePlayer: whiteAddr,
@@ -209,7 +247,9 @@ gameRoutes.post('/:id/join', requireAuth, async (c) => {
     gameState: JSON.stringify(state),
     blackReady: false,
     whiteReady: false,
-  }).where(eq(games.id, gameId)).returning()
+  }).where(and(eq(games.id, gameId), eq(games.status, 'waiting'))).returning()
+
+  if (!updated) return c.json({ error: 'Игра уже занята' }, 409)
 
   broadcastToGame(gameId, { type: WS_EVENTS.GAME_JOINED, game: updated })
   broadcastToLobby({ type: WS_EVENTS.GAME_JOINED, gameId })
@@ -253,12 +293,18 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
     const state = parseRawGameState(fresh.gameState)
     state.s = 'playing'
 
+    // Atomic: only transition if still 'ready_check' (prevents double-start)
     const [started] = await db.update(games).set({
       status: 'playing',
       gameState: JSON.stringify(state),
       startedAt: now,
       currentTurnDeadline: deadline,
-    }).where(eq(games.id, gameId)).returning()
+    }).where(and(eq(games.id, gameId), eq(games.status, 'ready_check'))).returning()
+
+    if (!started) {
+      // Already transitioned by the other ready request — just return
+      return c.json({ success: true, blackReady: fresh.blackReady, whiteReady: fresh.whiteReady })
+    }
 
     broadcastToGame(gameId, {
       type: WS_EVENTS.GAME_BOTH_READY,
@@ -336,6 +382,7 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
     : newState.status === 'white_wins' ? game.whitePlayer
     : null
 
+  // Atomic: only update if game is still 'playing' (prevents race with timeout/resign)
   const [updated] = await db.update(games).set({
     gameState: serializeGameState(newState),
     moveCount: newState.moveCount,
@@ -343,7 +390,9 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
     currentTurnDeadline: isFinished ? null : deadline,
     winner,
     finishedAt: isFinished ? new Date() : null,
-  }).where(eq(games.id, gameId)).returning()
+  }).where(and(eq(games.id, gameId), eq(games.status, 'playing'))).returning()
+
+  if (!updated) return c.json({ error: 'Игра уже завершена' }, 400)
 
   // Update user stats + ELO if game is over
   if (isFinished && winner) {
@@ -408,6 +457,7 @@ gameRoutes.post('/:id/move', requireAuth, zValidator('json', MakeMoveSchema), as
     move: { from, to, captures: validMove.captures, promotion: validMove.promotion },
     gameState: newState,
     winner,
+    currentTurnDeadline: updated.currentTurnDeadline?.toISOString() ?? null,
   })
 
   return c.json({ game: updated, move: validMove, gameState: newState })
@@ -472,12 +522,15 @@ gameRoutes.post('/:id/resign', requireAuth, async (c) => {
   const winner = address === game.blackPlayer ? game.whitePlayer : game.blackPlayer
   const winStatus = address === game.blackPlayer ? 'white_wins' : 'black_wins'
 
+  // Atomic status transition: only proceed if still 'playing'
   const [updated] = await db.update(games).set({
     status: winStatus,
     winner,
     finishedAt: new Date(),
     currentTurnDeadline: null,
-  }).where(eq(games.id, gameId)).returning()
+  }).where(and(eq(games.id, gameId), eq(games.status, 'playing'))).returning()
+
+  if (!updated) return c.json({ error: 'Игра уже завершена' }, 400)
 
   logEvent(db, 'resign', address, gameId)
 
@@ -615,11 +668,19 @@ gameRoutes.post('/:id/draw-accept', requireAuth, async (c) => {
     return c.json({ error: 'You are not in this game' }, 403)
   }
 
+  // Atomic status transition: only proceed if still 'playing'
   const [updated] = await db.update(games).set({
     status: 'draw',
     finishedAt: new Date(),
     currentTurnDeadline: null,
-  }).where(eq(games.id, gameId)).returning()
+  }).where(and(eq(games.id, gameId), eq(games.status, 'playing'))).returning()
+
+  if (!updated) return c.json({ error: 'Игра уже завершена' }, 400)
+
+  // Record commission from draw (10% of total pot)
+  if (game.wager !== '0') {
+    recordCommission(db, game.wager, gameId)
+  }
 
   // ELO draw update
   if (game.blackPlayer && game.whitePlayer) {

@@ -2,7 +2,7 @@ import { lt, eq, and, isNotNull } from 'drizzle-orm'
 import { games, users, txEvents, treasuryLedger } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { broadcastToGame } from '../ws/handler'
-import { WS_EVENTS, calculateElo } from '@checkers/shared'
+import { WS_EVENTS, calculateElo, calcCommission } from '@checkers/shared'
 import { sql } from 'drizzle-orm'
 import { relayer } from './relayer'
 import { ReferralService } from './referral.service'
@@ -44,12 +44,18 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
         const loser = currentTurn === 'black' ? game.blackPlayer : game.whitePlayer
         const winner = currentTurn === 'black' ? game.whitePlayer : game.blackPlayer
 
-        await db.update(games).set({
+        // Atomic status transition: only proceed if still 'playing'
+        const [resolved] = await db.update(games).set({
           status: 'timeout',
           winner,
           finishedAt: now,
           currentTurnDeadline: null,
-        }).where(eq(games.id, game.id))
+        }).where(and(eq(games.id, game.id), eq(games.status, 'playing'))).returning()
+
+        if (!resolved) {
+          // Game was already resolved by resign/disconnect/move — skip
+          continue
+        }
 
         // Fetch current ELO BEFORE updating stats (K-factor depends on gamesPlayed)
         let eloChange = { newRatingWinner: 1200, newRatingLoser: 1200 }
@@ -81,7 +87,7 @@ export function startTimeoutChecker(db: Db, intervalMs = 5000) {
         }
 
         // Record commission + referral rewards
-        const commission = String(Math.floor(Number(game.wager) * 2 * 0.1))
+        const { commission } = calcCommission(game.wager)
         if (Number(commission) > 0) {
           db.insert(treasuryLedger).values({
             source: 'game_commission',

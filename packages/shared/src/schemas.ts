@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MIN_WAGER, MAX_WAGER } from './constants'
 
 // ── Auth ─────────────────────────────────────────────────────────────
 
@@ -15,7 +16,12 @@ export const VerifyAuthSchema = z.object({
 // ── Game ─────────────────────────────────────────────────────────────
 
 export const CreateGameSchema = z.object({
-  wager: z.string().regex(/^\d+$/, 'Wager must be a numeric string'),
+  wager: z.string().regex(/^\d+$/, 'Wager must be a numeric string').refine(
+    (v) => {
+      try { return BigInt(v) >= BigInt(MIN_WAGER) && BigInt(v) <= BigInt(MAX_WAGER) } catch { return false }
+    },
+    { message: `Wager must be between ${MIN_WAGER} and ${MAX_WAGER}` },
+  ),
   timePerMove: z.number().int().min(15).max(600).default(60), // seconds
   variant: z.enum(['russian', 'american']).default('russian'),
 })

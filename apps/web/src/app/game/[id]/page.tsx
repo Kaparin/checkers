@@ -12,7 +12,7 @@ import { LeaveGameModal } from '@/components/ui/leave-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useNavigationBlock } from '@/hooks/use-navigation-block'
 import { useToast } from '@/components/ui/toast'
-import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, joinGame, confirmReady, offerRematch, acceptRematch, declineRematch } from '@/lib/api'
+import { getGame, makeMove, resignGame, offerDraw, acceptDraw, cancelGame, joinGame, confirmReady, offerRematch, acceptRematch, declineRematch, getRelayStatus } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
@@ -59,8 +59,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [rematchLoading, setRematchLoading] = useState(false)
 
   const [opponentDisconnected, setOpponentDisconnected] = useState(false)
+  const [txHashResolve, setTxHashResolve] = useState<string | null>(null)
 
-  const { subscribe, connected } = useWebSocket(gameId)
+  const { subscribe, connected, reconnecting } = useWebSocket(gameId)
   const { address, isConnected, openConnectModal } = useWallet()
 
   // Helper: parse game state from API response
@@ -129,7 +130,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         const gs = msg.gameState as GameState
         if (gs) setGameState(prev => ({ ...gs, variant: gs.variant || prev?.variant || 'russian' }))
         if (msg.type === 'game:move') {
-          setTurnDeadline(new Date(Date.now() + timePerMove * 1000).toISOString())
+          setTurnDeadline((msg.currentTurnDeadline as string) || new Date(Date.now() + timePerMove * 1000).toISOString())
           // Reset draw state on new move (draw offer is per-turn)
           setDrawOffered(false)
           setDrawPending(false)
@@ -227,6 +228,14 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     return unsub
   }, [subscribe, gameId, address, toast, router, variant, timePerMove, rematchOffered])
 
+  // Fetch txHash when game is over
+  useEffect(() => {
+    if (!showGameOver) return
+    getRelayStatus(gameId).then(status => {
+      if (status.txHashResolve) setTxHashResolve(status.txHashResolve)
+    }).catch(() => {})
+  }, [showGameOver, gameId])
+
   // Toast 10 seconds before timeout
   const timeoutToastFired = useRef<string | null>(null)
   const isMyTurnNow = gameState?.currentTurn === playerColor && gameState?.status === 'playing'
@@ -255,7 +264,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       const gs = result.gameState as GameState
       if (gs) {
         setGameState(gs)
-        setTurnDeadline(new Date(Date.now() + timePerMove * 1000).toISOString())
+        const serverDeadline = result.game?.currentTurnDeadline
+        setTurnDeadline(serverDeadline || new Date(Date.now() + timePerMove * 1000).toISOString())
       }
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Ошибка хода', 'error')
@@ -456,9 +466,16 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               </svg>
             </button>
           )}
-          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-danger'}`} />
+          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : reconnecting ? 'bg-warning animate-pulse' : 'bg-danger'}`} title={connected ? 'Подключено' : reconnecting ? 'Переподключение...' : 'Нет связи'} />
         </div>
       </div>
+
+      {/* Reconnecting banner */}
+      {reconnecting && !connected && (
+        <div className="w-full px-4 py-1.5 bg-warning/10 border-b border-warning/20 text-center text-xs text-warning font-medium">
+          Переподключение к серверу...
+        </div>
+      )}
 
       {/* Game content */}
       <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4 py-3 overflow-hidden relative">
@@ -479,6 +496,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
                   <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
                   <p className="text-sm text-text-secondary">Ожидание соперника...</p>
+                  <p className="text-[10px] text-text-muted">Игра автоматически отменится через 30 минут, если никто не присоединится</p>
                 </div>
                 <InviteLink gameId={gameId} />
                 <button
@@ -663,6 +681,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           wager={wager}
           gameState={gameState}
           gameId={gameId}
+          txHash={txHashResolve}
           onClose={() => setShowGameOver(false)}
           onBackToLobby={() => router.push('/')}
           onRematch={isPlayer ? handleRematchOffer : undefined}

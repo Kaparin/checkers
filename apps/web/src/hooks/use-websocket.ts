@@ -11,6 +11,7 @@ export function useWebSocket(gameId?: string) {
   const wsRef = useRef<WebSocket | null>(null)
   const handlersRef = useRef<Set<MessageHandler>>(new Set<MessageHandler>())
   const [connected, setConnected] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnectAttempt = useRef(0)
@@ -26,6 +27,7 @@ export function useWebSocket(gameId?: string) {
 
       ws.onopen = () => {
         setConnected(true)
+        setReconnecting(false)
         reconnectAttempt.current = 0
 
         // Join game room if gameId provided
@@ -60,9 +62,12 @@ export function useWebSocket(gameId?: string) {
 
         // Exponential backoff reconnect (max 50 attempts)
         if (reconnectAttempt.current < 50) {
+          setReconnecting(true)
           const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 30000)
           reconnectAttempt.current++
           reconnectTimer.current = setTimeout(connect, delay)
+        } else {
+          setReconnecting(false)
         }
       }
 
@@ -104,5 +109,5 @@ export function useWebSocket(gameId?: string) {
     }
   }, [])
 
-  return { connected, subscribe, send }
+  return { connected, reconnecting, subscribe, send }
 }

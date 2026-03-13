@@ -21,6 +21,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   const [openGames, setOpenGames] = useState<GameListItem[]>([])
   const [activeGames, setActiveGames] = useState<GameListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [joiningGameId, setJoiningGameId] = useState<string | null>(null)
   const { address, isConnected, openConnectModal } = useWallet()
   const { subscribe } = useWebSocket()
 
@@ -83,12 +84,16 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   }
 
   async function handleJoin(gameId: string) {
+    if (joiningGameId) return
+    setJoiningGameId(gameId)
     try {
       await joinGame(gameId)
       router.push(`/game/${gameId}`)
     } catch {
       // If join fails, still navigate to game page — user can join from there
       router.push(`/game/${gameId}`)
+    } finally {
+      setJoiningGameId(null)
     }
   }
 
@@ -233,10 +238,10 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                 </div>
                 <button
                   onClick={() => isConnected ? handleJoin(game.id) : openConnectModal()}
-                  disabled={game.blackPlayer === address}
+                  disabled={game.blackPlayer === address || joiningGameId === game.id}
                   className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40 shrink-0 ml-3"
                 >
-                  {game.blackPlayer === address ? 'Ваша' : isConnected ? 'Играть' : 'Войти'}
+                  {game.blackPlayer === address ? 'Ваша' : joiningGameId === game.id ? 'Вход...' : isConnected ? 'Играть' : 'Войти'}
                 </button>
               </div>
             ))}

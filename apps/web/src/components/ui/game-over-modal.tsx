@@ -10,6 +10,7 @@ interface GameOverModalProps {
   wager: string
   gameState: GameState
   gameId?: string
+  txHash?: string | null
   onClose: () => void
   onBackToLobby: () => void
   onRematch?: () => void
@@ -26,6 +27,7 @@ export function GameOverModal({
   wager,
   gameState,
   gameId,
+  txHash,
   onClose,
   onBackToLobby,
   onRematch,
@@ -88,6 +90,14 @@ export function GameOverModal({
             <div className="flex justify-between px-4">
               <span className="text-text-secondary">Выигрыш</span>
               <span className="font-medium text-success">+{prizeDisplay} AXM</span>
+            </div>
+          )}
+          {txHash && (
+            <div className="flex justify-between px-4">
+              <span className="text-text-secondary">Транзакция</span>
+              <span className="font-mono text-[10px] text-text-muted" title={txHash}>
+                {txHash.slice(0, 8)}...{txHash.slice(-6)}
+              </span>
             </div>
           )}
         </div>

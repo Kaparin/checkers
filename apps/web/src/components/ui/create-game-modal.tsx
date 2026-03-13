@@ -36,6 +36,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
   const [timePerMove, setTimePerMove] = useState(60)
   const [variant, setVariant] = useState<'russian' | 'american'>('russian')
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [balance, setBalance] = useState<string | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(true)
   const { address } = useWallet()
@@ -55,10 +56,25 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
 
   const handleCreate = async () => {
     setCreating(true)
+    setCreateError(null)
+    // Refresh balance before submitting
+    if (address) {
+      try {
+        const freshBalance = await getBalance(address)
+        setBalance(freshBalance)
+        if (freshBalance && Number(freshBalance) < wager * 1_000_000) {
+          setCreateError('Недостаточно средств для этой ставки')
+          setCreating(false)
+          return
+        }
+      } catch {
+        // If chain unavailable, proceed — backend will validate
+      }
+    }
     try {
       await onCreate(String(wager * 1_000_000), timePerMove, variant)
     } catch (err) {
-      // Error will be handled by the parent, but reset state
+      setCreateError(err instanceof Error ? err.message : 'Ошибка создания игры')
       setCreating(false)
       return
     }
@@ -135,10 +151,11 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
           <input
             type="number"
             min="1"
+            max="100"
             value={wager}
-            onChange={(e) => setWager(Math.max(1, Number(e.target.value)))}
+            onChange={(e) => setWager(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
             className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
-            placeholder="Другая сумма"
+            placeholder="Другая сумма (1–100 AXM)"
           />
           {insufficientBalance && (
             <p className="text-xs text-danger">Недостаточно средств для этой ставки</p>
@@ -164,6 +181,11 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
             ))}
           </div>
         </div>
+
+        {/* Error message */}
+        {createError && (
+          <p className="text-xs text-danger text-center bg-danger/10 rounded-lg px-3 py-2">{createError}</p>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3">
