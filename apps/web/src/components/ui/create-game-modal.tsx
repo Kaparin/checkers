@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useWallet } from '@/contexts/wallet-context'
-import { getBalance, formatAXM } from '@/lib/chain-actions'
+import { getBalance, formatAXM, checkAuthzGrant, getChainConfig, requestGasFunding } from '@/lib/chain-actions'
+import { grantAuthzToRelayer } from '@/lib/chain-tx'
 
 interface CreateGameModalProps {
   onClose: () => void
@@ -39,16 +40,72 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
   const [createError, setCreateError] = useState<string | null>(null)
   const [balance, setBalance] = useState<string | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(true)
+  const [hasAuthz, setHasAuthz] = useState<boolean | null>(null)
+  const [granting, setGranting] = useState(false)
+  const [grantStep, setGrantStep] = useState<string | null>(null)
   const { address } = useWallet()
 
   useEffect(() => {
     if (!address) return
     setBalanceLoading(true)
-    getBalance(address)
-      .then(setBalance)
-      .catch(() => setBalance(null))
+    Promise.all([
+      getBalance(address),
+      checkAuthzGrant(address),
+    ])
+      .then(([bal, granted]) => {
+        setBalance(bal)
+        setHasAuthz(granted)
+      })
+      .catch(() => {
+        setBalance(null)
+        setHasAuthz(null)
+      })
       .finally(() => setBalanceLoading(false))
   }, [address])
+
+  const handleGrantAuthz = async () => {
+    if (!address) return
+    setGranting(true)
+    setGrantStep('Проверка сети...')
+    setCreateError(null)
+    try {
+      const config = await getChainConfig()
+      if (!config.relayerAddress || !config.contractAddress) {
+        throw new Error('Сеть не настроена')
+      }
+      // Fund gas if needed
+      setGrantStep('Проверка баланса...')
+      const bal = await getBalance(address)
+      if (Number(bal) < 50000) {
+        setGrantStep('Получение газа...')
+        await requestGasFunding()
+        await new Promise(r => setTimeout(r, 4000))
+      }
+      // Sign authz grant
+      setGrantStep('Подпишите транзакцию в кошельке...')
+      await grantAuthzToRelayer(address, config.relayerAddress, config.contractAddress)
+      // Wait for indexing
+      setGrantStep('Подтверждение...')
+      await new Promise(r => setTimeout(r, 5000))
+      const granted = await checkAuthzGrant(address)
+      if (granted) {
+        setHasAuthz(true)
+      } else {
+        await new Promise(r => setTimeout(r, 5000))
+        setHasAuthz(await checkAuthzGrant(address))
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ошибка авторизации'
+      if (msg.includes('account from signer')) {
+        setCreateError('Не удалось получить аккаунт. Переподключите кошелёк.')
+      } else {
+        setCreateError(msg)
+      }
+    } finally {
+      setGranting(false)
+      setGrantStep(null)
+    }
+  }
 
   const balanceNum = balance ? Number(balance) : 0
   const wagerMicro = wager * 1_000_000
@@ -108,6 +165,25 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
             <span className="text-text-muted">Баланс недоступен</span>
           )}
         </div>
+
+        {/* Authz warning */}
+        {hasAuthz === false && !balanceLoading && (
+          <div className="bg-accent/10 border border-accent/30 rounded-xl p-3 space-y-2">
+            <p className="text-xs text-accent font-medium">
+              Для игры на ставку необходимо авторизовать релеер. Это одноразовое действие.
+            </p>
+            <button
+              onClick={handleGrantAuthz}
+              disabled={granting}
+              className="w-full py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {granting && (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              )}
+              {granting ? (grantStep || 'Авторизация...') : 'Авторизовать'}
+            </button>
+          </div>
+        )}
 
         {/* Variant selector */}
         <div className="space-y-2">
@@ -197,7 +273,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
           </button>
           <button
             onClick={handleCreate}
-            disabled={creating || insufficientBalance || balanceLoading}
+            disabled={creating || insufficientBalance || balanceLoading || hasAuthz === false || granting}
             className="flex-1 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
           >
             {creating ? 'Создание...' : 'Создать'}
