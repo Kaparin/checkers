@@ -5,19 +5,20 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 export { getStoredAddress }
 
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs, ...fetchOptions } = (options || {}) as RequestInit & { timeoutMs?: number }
   const headers: Record<string, string> = {
     ...getAuthHeaders(),
-    ...((options?.headers as Record<string, string>) || {}),
+    ...((fetchOptions?.headers as Record<string, string>) || {}),
   }
-  if (options?.body && typeof options.body === 'string') {
+  if (fetchOptions?.body && typeof fetchOptions.body === 'string') {
     headers['Content-Type'] = 'application/json'
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), options?.timeoutMs ?? 15_000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 15_000)
 
   const res = await fetch(`${API_URL}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
     credentials: 'include',
     signal: controller.signal,

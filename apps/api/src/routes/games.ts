@@ -62,18 +62,22 @@ function parseRawGameState(raw: unknown): Record<string, unknown> {
 
 export const gameRoutes = new Hono()
 
-/** Check if user has granted authz to relayer (server-side) */
-async function hasAuthzGrant(address: string): Promise<boolean> {
+/**
+ * Check if user has granted authz to relayer (server-side).
+ * Returns: true = confirmed, false = confirmed no grant, null = check failed (network).
+ * On network failure, we let the relay call proceed — it will fail with a clear error if no grant.
+ */
+async function hasAuthzGrant(address: string): Promise<boolean | null> {
   const grantee = relayer.getAddress()
-  if (!grantee) return false
+  if (!grantee) return null
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
+    const timeout = setTimeout(() => controller.abort(), 8000)
     const res = await fetch(
       `${AXIOME_REST}/cosmos/authz/v1beta1/grants?granter=${address}&grantee=${grantee}`,
       { signal: controller.signal },
     ).finally(() => clearTimeout(timeout))
-    if (!res.ok) return false
+    if (!res.ok) return null // network/server issue — don't block
     const data = await res.json() as any
     const grants = data.grants || []
     return grants.some((g: any) => {
@@ -86,7 +90,8 @@ async function hasAuthzGrant(address: string): Promise<boolean> {
       )
     })
   } catch {
-    return false
+    console.warn(`[authz] Check failed for ${address} — proceeding anyway`)
+    return null // network error — don't block, let relay handle it
   }
 }
 
@@ -213,9 +218,9 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
 
   // Synchronous: lock wager on-chain (must succeed before game is available)
   if (relayer.isReady && wager !== '0') {
-    // Check authz grant before attempting relay
+    // Check authz grant before attempting relay (false = confirmed no grant, null = check failed)
     const granted = await hasAuthzGrant(address)
-    if (!granted) {
+    if (granted === false) {
       await db.delete(games).where(eq(games.id, game.id))
       return c.json({ error: 'Вы не авторизовали релеер. Нажмите "Авторизовать" на главной странице.' }, 403)
     }
@@ -349,9 +354,9 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
 
     // Synchronous: lock joiner's wager on-chain BEFORE broadcasting game start
     if (relayer.isReady && game.onChainGameId && game.wager !== '0' && game.whitePlayer) {
-      // Check authz grant for joiner
+      // Check authz grant for joiner (false = confirmed no grant, null = check failed)
       const joinerGranted = await hasAuthzGrant(game.whitePlayer!)
-      if (!joinerGranted) {
+      if (joinerGranted === false) {
         await db.update(games).set({
           status: 'ready_check',
           blackReady: false,
