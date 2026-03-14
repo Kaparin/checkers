@@ -38,7 +38,22 @@
       "Bash(find /e/Work/checkers/packages/db/src/schema -type f -name \"*.ts\" 2>/dev/null | head -20)",
       "Bash(find /e/Work/checkers -name \"*.ts\" -type f | xargs grep -l \"timeout\\\\|cron\\\\|worker\\\\|schedule\" | head -15)",
       "Bash(grep -r \"sm:\\\\|md:\\\\|lg:\\\\|mobile\\\\|responsive\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx | head -20)",
-      "Bash(grep -n \"ARIA\\\\|aria-\\\\|role=\\\\|alt=\\\\|tabIndex\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx)"
+      "Bash(grep -n \"ARIA\\\\|aria-\\\\|role=\\\\|alt=\\\\|tabIndex\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx)",
+      "Bash(grep -n \"refresh\\\\|reload\\\\|persist\\\\|localStorage\\\\|sessionStorage\" /e/Work/checkers/apps/web/src/app/game/[id]/page.tsx)",
+      "Bash(npx tsx:*)",
+      "Bash(cd packages/shared && node -e \"\nconst { z } = require\\('zod'\\);\nconst MIN_WAGER = '1000000';\nconst MAX_WAGER = '100000000';\nconst S = z.object\\({\n  wager: z.string\\(\\).regex\\(/^\\\\d+$/, 'numeric'\\).refine\\(\n    v => { try { return BigInt\\(v\\) >= BigInt\\(MIN_WAGER\\) && BigInt\\(v\\) <= BigInt\\(MAX_WAGER\\) } catch { return false } },\n    { message: 'range' },\n  \\),\n}\\);\nconst t = \\(w, e, d\\) => { const r = S.safeParse\\({wager:w}\\); console.log\\(\\(r.success===e?'OK':'FAIL'\\)+' | '+d+' -> '+\\(r.success?'PASS':'REJECT'\\)\\); };\nt\\('500000', false, 'TC-1.1a: 0.5 AXM < MIN'\\);\nt\\('200000000', false, 'TC-1.1b: 200 AXM > MAX'\\);\nt\\('0', false, 'TC-1.1c: wager=0'\\);\nt\\('1000000', true, 'TC-1.1d: 1 AXM = MIN'\\);\nt\\('100000000', true, 'TC-1.1e: 100 AXM = MAX'\\);\nt\\('50000000', true, 'TC-1.1f: 50 AXM valid'\\);\nt\\('abc', false, 'TC-1.1g: non-numeric'\\);\nt\\('-1000000', false, 'TC-1.1h: negative'\\);\n\" 2>&1)",
+      "Bash(node -e \"\nconst COMMISSION_BPS = 1000;\nfunction calcCommission\\(wager\\) {\n  const pot = BigInt\\(wager\\) * 2n;\n  const commission = pot * BigInt\\(COMMISSION_BPS\\) / 10000n;\n  const payout = pot - commission;\n  return { commission: String\\(commission\\), payout: String\\(payout\\) };\n}\nfunction oldCalc\\(wager\\) { return String\\(Math.floor\\(Number\\(wager\\) * 2 * 0.1\\)\\); }\n\nconst wagers = ['1000000','5000000','10000000','50000000','100000000','123456789','99999999'];\nfor \\(const w of wagers\\) {\n  const n = calcCommission\\(w\\);\n  const o = oldCalc\\(w\\);\n  const ok = n.commission === o;\n  console.log\\(\\(ok?'MATCH':'DIFF'\\)+' | wager='+w+' new='+n.commission+' old='+o+' payout='+n.payout\\);\n}\nconsole.log\\('OK | TC-1.6: calcCommission is BigInt-safe and consistent'\\);\n\" 2>&1)",
+      "Bash(find /e/Work/checkers -type f -name \"schema\" -o -name \"*deploy*\" 2>/dev/null | head -20)",
+      "Bash(find /e/Work/checkers -type f \\\\\\( -name \"*.ts\" -o -name \"*.js\" \\\\\\) | xargs grep -l \"checkers.*contract\\\\|CHECKERS_CONTRACT\\\\|ResolveGame\\\\|JoinGame\" 2>/dev/null | head -15)",
+      "Bash(find apps/api -name \"*.ts\" | xargs grep -l \"startTimeoutChecker\\\\|startStuckRecovery\\\\|indexer\" | head -5)",
+      "Bash(find \"E:\\\\Work\\\\coinflip\\\\apps\\\\web\\\\src\\\\app\\\\admin\\\\tabs\" -name \"*.tsx\" | xargs -I {} basename {} | sort)",
+      "Bash(grep -r \"ExecuteMsg\\\\|ResolveGame\\\\|JoinGame\\\\|CreateGame\" /e/Work/checkers --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" 2>/dev/null | head -30)",
+      "Bash(curl -s --max-time 5 \"https://checkers-production-2a03.up.railway.app/health\" 2>&1 || echo \"API unreachable\")",
+      "Bash(curl -s --max-time 5 \"https://checkers-production-2a03.up.railway.app/config\" 2>&1 || echo \"Config unreachable\")",
+      "Bash(curl -s --max-time 5 \"http://49.13.3.227:1317/cosmos/bank/v1beta1/balances/axm1test\" 2>&1 | head -5 || echo \"Chain REST unreachable\")",
+      "Bash(curl -s --max-time 30 -X POST \"https://checkers-production-2a03.up.railway.app/games\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"wager\":\"1000000\",\"timePerMove\":60,\"variant\":\"russian\"}' 2>&1)",
+      "Bash(curl -s --max-time 10 \"https://checkers-production-2a03.up.railway.app/chain/authz/axm1p9g8yads5u6aer0hxze7gze36jklljrvxlnczz\" 2>&1)",
+      "WebFetch(domain:opensea.io)"
     ]
   },
   "outputStyle": "default"
