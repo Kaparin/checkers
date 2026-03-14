@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Link2, Copy, Check } from 'lucide-react'
 
 interface InviteLinkProps {
   gameId: string
@@ -32,7 +33,8 @@ export function InviteLink({ gameId }: InviteLinkProps) {
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-3 bg-bg-card border border-border rounded-xl">
+    <div className="flex items-center gap-3 px-4 py-3 bg-bg-card border border-border rounded-2xl">
+      <Link2 className="w-4 h-4 text-text-muted shrink-0" />
       <input
         type="text"
         value={link}
@@ -41,9 +43,23 @@ export function InviteLink({ gameId }: InviteLinkProps) {
       />
       <button
         onClick={handleCopy}
-        className="shrink-0 px-3 py-1.5 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent-hover transition-colors"
+        className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-xl transition-colors flex items-center gap-1.5 ${
+          copied
+            ? 'bg-success/10 text-success border border-success/20'
+            : 'bg-accent text-white hover:bg-accent-hover'
+        }`}
       >
-        {copied ? 'Скопировано!' : 'Копировать'}
+        {copied ? (
+          <>
+            <Check className="w-3.5 h-3.5" />
+            Скопировано!
+          </>
+        ) : (
+          <>
+            <Copy className="w-3.5 h-3.5" />
+            Копировать
+          </>
+        )}
       </button>
     </div>
   )

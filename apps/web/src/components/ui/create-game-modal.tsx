@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useWallet } from '@/contexts/wallet-context'
 import { getBalance, formatAXM, checkAuthzGrant, getChainConfig, requestGasFunding } from '@/lib/chain-actions'
 import { grantAuthzToRelayer } from '@/lib/chain-tx'
+import { X, Shield, Loader2 } from 'lucide-react'
 
 interface CreateGameModalProps {
   onClose: () => void
@@ -23,12 +24,12 @@ const VARIANTS = [
   {
     id: 'russian' as const,
     name: 'Русские',
-    desc: 'Дамки летают, захват назад, превращение в цепи',
+    desc: 'Летающие дамки, захват назад',
   },
   {
     id: 'american' as const,
     name: 'Американские',
-    desc: 'Стандартные правила, дамка на 1 клетку',
+    desc: 'Стандартные правила',
   },
 ]
 
@@ -73,7 +74,6 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       if (!config.relayerAddress || !config.contractAddress) {
         throw new Error('Сеть не настроена')
       }
-      // Fund gas if needed
       setGrantStep('Проверка баланса...')
       const bal = await getBalance(address)
       if (Number(bal) < 50000) {
@@ -81,10 +81,8 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
         await requestGasFunding()
         await new Promise(r => setTimeout(r, 4000))
       }
-      // Sign authz grant
-      setGrantStep('Подпишите транзакцию в кошельке...')
+      setGrantStep('Подпишите транзакцию...')
       await grantAuthzToRelayer(address, config.relayerAddress, config.contractAddress)
-      // Wait for indexing
       setGrantStep('Подтверждение...')
       await new Promise(r => setTimeout(r, 5000))
       const granted = await checkAuthzGrant(address)
@@ -114,7 +112,6 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
   const handleCreate = async () => {
     setCreating(true)
     setCreateError(null)
-    // Refresh balance before submitting
     if (address) {
       try {
         const freshBalance = await getBalance(address)
@@ -125,7 +122,7 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
           return
         }
       } catch {
-        // If chain unavailable, proceed — backend will validate
+        // proceed — backend will validate
       }
     }
     try {
@@ -143,141 +140,158 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative bg-bg-card border border-border rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5"
+        transition={{ duration: 0.2 }}
+        className="relative bg-bg-card border border-border rounded-2xl shadow-xl p-6 max-w-[420px] w-full"
       >
-        <h2 className="text-xl font-bold text-center">Создать игру</h2>
-
-        {/* Balance display */}
-        <div className="text-center text-sm">
-          {balanceLoading ? (
-            <span className="text-text-muted">Загрузка баланса...</span>
-          ) : balance !== null ? (
-            <span className={insufficientBalance ? 'text-danger' : 'text-success'}>
-              Ваш баланс: {formatAXM(balance)} AXM
-            </span>
-          ) : (
-            <span className="text-text-muted">Баланс недоступен</span>
-          )}
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold">Создать игру</h2>
+          <button onClick={onClose} className="p-1.5 text-text-muted hover:text-text hover:bg-bg-subtle rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Authz warning */}
-        {hasAuthz === false && !balanceLoading && (
-          <div className="bg-accent/10 border border-accent/30 rounded-xl p-3 space-y-2">
-            <p className="text-xs text-accent font-medium">
-              Для игры на ставку необходимо авторизовать релеер. Это одноразовое действие.
-            </p>
+        <div className="space-y-5">
+          {/* Balance */}
+          <div className="flex items-center justify-between px-4 py-3 bg-bg-subtle rounded-xl">
+            <span className="text-sm text-text-secondary">Баланс</span>
+            {balanceLoading ? (
+              <div className="h-5 w-20 rounded animate-shimmer" />
+            ) : balance !== null ? (
+              <span className={`text-sm font-semibold tabular-nums ${insufficientBalance ? 'text-danger' : 'text-text'}`}>
+                {formatAXM(balance)} AXM
+              </span>
+            ) : (
+              <span className="text-sm text-text-muted">---</span>
+            )}
+          </div>
+
+          {/* Authz warning */}
+          {hasAuthz === false && !balanceLoading && (
+            <div className="bg-accent/5 border border-accent/20 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-text">Авторизация релеера</p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Разрешите управление ставками. Одноразовое действие.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleGrantAuthz}
+                disabled={granting}
+                className="w-full py-2.5 text-sm font-semibold text-white bg-accent rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {granting && <Loader2 className="w-4 h-4 animate-spin" />}
+                {granting ? (grantStep || 'Авторизация...') : 'Авторизовать'}
+              </button>
+            </div>
+          )}
+
+          {/* Variant */}
+          <div>
+            <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2 block">Правила</label>
+            <div className="grid grid-cols-2 gap-2">
+              {VARIANTS.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => setVariant(v.id)}
+                  className={`p-3 rounded-xl text-left transition-all border ${
+                    variant === v.id
+                      ? 'bg-accent/10 border-accent/40 ring-1 ring-accent/20'
+                      : 'bg-bg-subtle border-border hover:border-border-hover'
+                  }`}
+                >
+                  <span className={`text-sm font-semibold block ${variant === v.id ? 'text-accent' : 'text-text'}`}>{v.name}</span>
+                  <span className="text-[11px] text-text-muted block mt-0.5">{v.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Wager */}
+          <div>
+            <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2 block">Ставка (AXM)</label>
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {WAGER_PRESETS.map(w => (
+                <button
+                  key={w}
+                  onClick={() => setWager(w)}
+                  className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    wager === w
+                      ? 'bg-accent text-white shadow-sm'
+                      : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated border border-border'
+                  }`}
+                >
+                  {w}
+                </button>
+              ))}
+            </div>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={wager}
+              onChange={(e) => setWager(Math.min(1000, Math.max(1, Number(e.target.value) || 1)))}
+              className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-xl text-sm focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 tabular-nums"
+              placeholder="Другая сумма"
+            />
+            {insufficientBalance && (
+              <p className="text-xs text-danger mt-1.5">Недостаточно средств</p>
+            )}
+          </div>
+
+          {/* Time */}
+          <div>
+            <label className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2 block">Время на ход</label>
+            <div className="grid grid-cols-4 gap-2">
+              {TIME_PRESETS.map(t => (
+                <button
+                  key={t.value}
+                  onClick={() => setTimePerMove(t.value)}
+                  className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    timePerMove === t.value
+                      ? 'bg-accent text-white shadow-sm'
+                      : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated border border-border'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Error */}
+          {createError && (
+            <div className="px-4 py-3 bg-danger/10 border border-danger/20 rounded-xl">
+              <p className="text-xs text-danger">{createError}</p>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-1">
             <button
-              onClick={handleGrantAuthz}
-              disabled={granting}
-              className="w-full py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              onClick={onClose}
+              className="flex-1 py-2.5 text-sm font-semibold text-text-secondary bg-bg-subtle border border-border rounded-xl hover:bg-bg-elevated transition-colors"
             >
-              {granting && (
-                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-              {granting ? (grantStep || 'Авторизация...') : 'Авторизовать'}
+              Отмена
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={creating || insufficientBalance || balanceLoading || hasAuthz === false || granting}
+              className="flex-1 py-2.5 text-sm font-semibold text-white bg-accent rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+              {creating ? 'Создание...' : 'Создать'}
             </button>
           </div>
-        )}
-
-        {/* Variant selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Правила</label>
-          <div className="grid grid-cols-2 gap-2">
-            {VARIANTS.map(v => (
-              <button
-                key={v.id}
-                onClick={() => setVariant(v.id)}
-                className={`p-3 rounded-xl text-left transition-all border ${
-                  variant === v.id
-                    ? 'bg-accent/10 border-accent text-accent'
-                    : 'bg-bg-subtle border-border text-text-secondary hover:border-border-hover'
-                }`}
-              >
-                <span className="text-sm font-semibold block">{v.name}</span>
-                <span className="text-[10px] leading-tight block mt-0.5 opacity-60">{v.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Wager */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Ставка (AXM)</label>
-          <div className="grid grid-cols-3 gap-2">
-            {WAGER_PRESETS.map(w => (
-              <button
-                key={w}
-                onClick={() => setWager(w)}
-                className={`py-2 rounded-lg text-sm font-medium transition-all ${
-                  wager === w
-                    ? 'bg-accent text-white shadow-sm'
-                    : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated border border-border'
-                }`}
-              >
-                {w} AXM
-              </button>
-            ))}
-          </div>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            value={wager}
-            onChange={(e) => setWager(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-            className="w-full px-4 py-2.5 bg-bg-subtle border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
-            placeholder="Другая сумма (1–100 AXM)"
-          />
-          {insufficientBalance && (
-            <p className="text-xs text-danger">Недостаточно средств для этой ставки</p>
-          )}
-        </div>
-
-        {/* Time */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Время на ход</label>
-          <div className="grid grid-cols-4 gap-2">
-            {TIME_PRESETS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => setTimePerMove(t.value)}
-                className={`py-2 rounded-lg text-sm font-medium transition-all ${
-                  timePerMove === t.value
-                    ? 'bg-accent text-white shadow-sm'
-                    : 'bg-bg-subtle text-text-secondary hover:bg-bg-elevated border border-border'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Error message */}
-        {createError && (
-          <p className="text-xs text-danger text-center bg-danger/10 rounded-lg px-3 py-2">{createError}</p>
-        )}
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 border border-border text-text-secondary font-medium rounded-lg hover:border-border-hover transition-colors"
-          >
-            Отмена
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={creating || insufficientBalance || balanceLoading || hasAuthz === false || granting}
-            className="flex-1 py-2.5 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
-          >
-            {creating ? 'Создание...' : 'Создать'}
-          </button>
         </div>
       </motion.div>
     </div>

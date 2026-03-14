@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect } from 'react'
+import { List } from 'lucide-react'
 import type { SerializedMove } from '@checkers/shared'
 
 interface MoveHistoryProps {
@@ -34,8 +35,11 @@ export function MoveHistory({ moves }: MoveHistoryProps) {
 
   if (moves.length === 0) {
     return (
-      <div className="bg-bg-card border border-border rounded-xl p-4">
-        <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">Ходы</h3>
+      <div className="bg-bg-card border border-border rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <List className="w-3.5 h-3.5 text-text-muted" />
+          <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">Ходы</h3>
+        </div>
         <p className="text-xs text-text-muted text-center py-4">Ходов пока нет</p>
       </div>
     )
@@ -52,14 +56,22 @@ export function MoveHistory({ moves }: MoveHistoryProps) {
   }
 
   return (
-    <div className="bg-bg-card border border-border rounded-xl p-4">
-      <h3 className="text-xs font-medium text-text-muted mb-2 uppercase tracking-wider">Ходы</h3>
+    <div className="bg-bg-card border border-border rounded-2xl p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <List className="w-3.5 h-3.5 text-text-muted" />
+        <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">Ходы</h3>
+      </div>
       <div ref={scrollRef} className="max-h-60 overflow-y-auto space-y-0.5">
-        {pairs.map(pair => (
-          <div key={pair.num} className="flex text-xs font-mono">
-            <span className="w-6 text-text-muted text-right mr-2">{pair.num}.</span>
-            <span className="w-14 font-medium">{pair.black}</span>
-            {pair.white && <span className="w-14 font-medium">{pair.white}</span>}
+        {pairs.map((pair, idx) => (
+          <div
+            key={pair.num}
+            className={`flex text-xs font-mono py-1 px-2 rounded-lg ${
+              idx === pairs.length - 1 ? 'bg-bg-subtle' : ''
+            }`}
+          >
+            <span className="w-7 text-text-muted text-right mr-2 select-none">{pair.num}.</span>
+            <span className="w-14 font-medium text-text">{pair.black}</span>
+            {pair.white && <span className="w-14 font-medium text-text">{pair.white}</span>}
           </div>
         ))}
       </div>

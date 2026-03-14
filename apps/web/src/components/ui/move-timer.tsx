@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Clock } from 'lucide-react'
 
 interface MoveTimerProps {
   deadline: string
@@ -32,11 +33,14 @@ export function MoveTimer({ deadline, isMyTurn, timePerMove }: MoveTimerProps) {
 
   return (
     <div className="w-full max-w-xs">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-text-secondary">
-          {isMyTurn ? 'Your time' : "Opponent's time"}
-        </span>
-        <span className={`text-sm font-mono font-semibold ${isLow ? 'text-danger' : 'text-text'}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          <Clock className={`w-3.5 h-3.5 ${isLow ? 'text-danger' : 'text-text-muted'}`} />
+          <span className="text-xs text-text-secondary">
+            {isMyTurn ? 'Ваше время' : 'Время соперника'}
+          </span>
+        </div>
+        <span className={`text-sm font-mono font-semibold tabular-nums ${isLow ? 'text-danger' : 'text-text'}`}>
           {minutes}:{seconds.toString().padStart(2, '0')}
         </span>
       </div>

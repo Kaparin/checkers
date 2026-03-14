@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Check, X, WifiOff, Loader2 } from 'lucide-react'
 import type { PieceColor } from '@checkers/shared'
 
 interface PlayerInfo {
@@ -45,7 +46,7 @@ function Timer({ deadline, timePerMove, isActive }: { deadline: string | null; t
     <div className="w-full">
       <div className="flex items-center justify-end mb-0.5">
         <span className={`text-xs font-mono font-semibold tabular-nums ${
-          isLow ? 'text-danger animate-pulse' : isActive ? 'text-text' : 'text-text-muted'
+          isLow ? 'text-danger' : isActive ? 'text-text' : 'text-text-muted'
         }`}>
           {minutes}:{seconds.toString().padStart(2, '0')}
         </span>
@@ -91,19 +92,15 @@ function Avatar({ address, color, isReadyCheck, isReady, isDisconnected }: {
           isReady ? 'bg-success' : 'bg-bg-subtle border border-border'
         }`}>
           {isReady ? (
-            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
           ) : (
-            <div className="w-2 h-2 border border-text-muted border-t-transparent rounded-full animate-spin" />
+            <Loader2 className="w-2.5 h-2.5 text-text-muted animate-spin" />
           )}
         </div>
       )}
       {isDisconnected && !isReadyCheck && (
         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-danger flex items-center justify-center">
-          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <WifiOff className="w-2.5 h-2.5 text-white" strokeWidth={3} />
         </div>
       )}
     </div>

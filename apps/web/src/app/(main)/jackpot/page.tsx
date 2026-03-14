@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { getJackpotPools, getJackpotWinners, type JackpotPool, type JackpotWinner } from '@/lib/api'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Trophy, Target, RotateCcw, Info, Sparkles, TrendingUp, Clock } from 'lucide-react'
 
 const TIER_COLORS: Record<string, string> = {
   mini: 'from-emerald-500 to-emerald-600',
@@ -12,12 +13,28 @@ const TIER_COLORS: Record<string, string> = {
   super_mega: 'from-red-500 to-red-600',
 }
 
-const TIER_BG: Record<string, string> = {
-  mini: 'bg-emerald-500/10 border-emerald-500/20',
-  medium: 'bg-blue-500/10 border-blue-500/20',
-  large: 'bg-purple-500/10 border-purple-500/20',
-  mega: 'bg-amber-500/10 border-amber-500/20',
-  super_mega: 'bg-red-500/10 border-red-500/20',
+const TIER_ICON_COLOR: Record<string, string> = {
+  mini: 'text-emerald-400',
+  medium: 'text-blue-400',
+  large: 'text-purple-400',
+  mega: 'text-amber-400',
+  super_mega: 'text-red-400',
+}
+
+const TIER_ACCENT: Record<string, string> = {
+  mini: 'border-emerald-500/20 hover:border-emerald-500/40',
+  medium: 'border-blue-500/20 hover:border-blue-500/40',
+  large: 'border-purple-500/20 hover:border-purple-500/40',
+  mega: 'border-amber-500/20 hover:border-amber-500/40',
+  super_mega: 'border-red-500/20 hover:border-red-500/40',
+}
+
+const TIER_BAR_BG: Record<string, string> = {
+  mini: 'bg-emerald-500/10',
+  medium: 'bg-blue-500/10',
+  large: 'bg-purple-500/10',
+  mega: 'bg-amber-500/10',
+  super_mega: 'bg-red-500/10',
 }
 
 function formatAXM(uaxm: string): string {
@@ -49,31 +66,47 @@ export default function JackpotPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div className="text-center space-y-2">
+      {/* Header */}
+      <div className="text-center space-y-3">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gold/10 mb-2">
+          <Trophy className="w-7 h-7 text-gold" />
+        </div>
         <h1 className="text-2xl font-bold tracking-tight">Джекпот</h1>
-        <p className="text-text-secondary text-sm">
+        <p className="text-text-secondary text-sm max-w-md mx-auto">
           Каждая игра пополняет джекпот-пулы. Когда пул достигает цели, выбирается случайный победитель!
         </p>
       </div>
 
       {/* Pools */}
       {error ? (
-        <div className="border border-dashed border-danger/30 rounded-2xl p-12 text-center">
+        <div className="border border-dashed border-danger/30 rounded-2xl p-12 text-center space-y-3">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-danger/10">
+            <Info className="w-5 h-5 text-danger" />
+          </div>
           <p className="text-danger text-sm">Не удалось загрузить данные. Попробуйте позже.</p>
         </div>
       ) : loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="bg-bg-card border border-border rounded-2xl p-6">
-              <Skeleton className="h-5 w-24 mb-4" />
-              <Skeleton className="h-8 w-32 mb-2" />
-              <Skeleton className="h-3 w-full rounded-full mb-2" />
-              <Skeleton className="h-4 w-20" />
+            <div key={i} className="bg-bg-card border border-border rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-xl" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-2.5 w-full rounded-full" />
+              <Skeleton className="h-3 w-28" />
             </div>
           ))}
         </div>
       ) : pools.length === 0 ? (
-        <div className="border border-dashed border-border rounded-2xl p-12 text-center">
+        <div className="border border-dashed border-border rounded-2xl p-12 text-center space-y-3">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-bg-subtle">
+            <Sparkles className="w-5 h-5 text-text-muted" />
+          </div>
           <p className="text-text-muted">Активных пулов пока нет.</p>
         </div>
       ) : (
@@ -83,28 +116,46 @@ export default function JackpotPage() {
             return (
               <div
                 key={pool.tier}
-                className={`border rounded-2xl p-6 space-y-3 ${TIER_BG[pool.tier] || 'bg-bg-card border-border'}`}
+                className={`bg-bg-card border rounded-2xl p-6 space-y-4 hover:shadow-card-hover transition-all ${TIER_ACCENT[pool.tier] || 'border-border hover:border-border-hover'}`}
               >
+                {/* Tier header */}
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">{pool.name}</h3>
-                  <span className="text-xs text-text-muted">Цикл #{pool.cycle}</span>
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-xl ${TIER_BAR_BG[pool.tier] || 'bg-accent/10'}`}>
+                      <Trophy className={`w-5 h-5 ${TIER_ICON_COLOR[pool.tier] || 'text-accent'}`} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm">{pool.name}</h3>
+                      <span className="text-xs text-text-muted flex items-center gap-1">
+                        <RotateCcw className="w-3 h-3" />
+                        Цикл #{pool.cycle}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="text-2xl font-bold">
-                  {formatAXM(pool.currentAmount)} <span className="text-sm font-normal text-text-secondary">AXM</span>
+                {/* Amount */}
+                <div>
+                  <div className="text-2xl font-bold tracking-tight">
+                    {formatAXM(pool.currentAmount)}
+                    <span className="text-sm font-normal text-text-secondary ml-1.5">AXM</span>
+                  </div>
                 </div>
 
                 {/* Progress bar */}
-                <div className="space-y-1">
-                  <div className="h-2.5 bg-black/10 rounded-full overflow-hidden">
+                <div className="space-y-2">
+                  <div className={`h-2.5 rounded-full overflow-hidden ${TIER_BAR_BG[pool.tier] || 'bg-bg-subtle'}`}>
                     <div
                       className={`h-full rounded-full bg-gradient-to-r ${TIER_COLORS[pool.tier] || 'from-accent to-accent-hover'} transition-all duration-500`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-xs text-text-muted">
-                    <span>{pct.toFixed(1)}%</span>
-                    <span>Цель: {formatAXM(pool.targetAmount)} AXM</span>
+                    <span className="font-medium">{pct.toFixed(1)}%</span>
+                    <span className="flex items-center gap-1">
+                      <Target className="w-3 h-3" />
+                      {formatAXM(pool.targetAmount)} AXM
+                    </span>
                   </div>
                 </div>
               </div>
@@ -116,50 +167,83 @@ export default function JackpotPage() {
       {/* Recent winners */}
       {winners.length > 0 && (
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
-          <div className="p-4 border-b border-border">
+          <div className="px-6 py-4 border-b border-border flex items-center gap-3">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-success/10">
+              <TrendingUp className="w-4 h-4 text-success" />
+            </div>
             <h2 className="text-lg font-semibold">Последние победители</h2>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-text-secondary">
-                <th className="text-left p-4 font-medium">Уровень</th>
-                <th className="text-left p-4 font-medium">Победитель</th>
-                <th className="text-right p-4 font-medium">Сумма</th>
-                <th className="text-right p-4 font-medium">Дата</th>
-              </tr>
-            </thead>
-            <tbody>
-              {winners.map((w) => (
-                <tr key={w.id} className="border-b border-border last:border-0">
-                  <td className="p-4">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r ${TIER_COLORS[w.tier] || 'from-accent to-accent-hover'}`}>
-                      {w.tier.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="p-4 font-mono text-xs">
-                    {w.winnerAddress ? `${w.winnerAddress.slice(0, 8)}...${w.winnerAddress.slice(-4)}` : '—'}
-                  </td>
-                  <td className="p-4 text-right font-medium text-success">
-                    {w.winAmount ? `${formatAXM(w.winAmount)} AXM` : '—'}
-                  </td>
-                  <td className="p-4 text-right text-text-muted text-xs">
-                    {w.drawnAt ? new Date(w.drawnAt).toLocaleDateString() : '—'}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-6 py-3 font-medium text-text-secondary text-xs uppercase tracking-wider">Уровень</th>
+                  <th className="text-left px-6 py-3 font-medium text-text-secondary text-xs uppercase tracking-wider">Победитель</th>
+                  <th className="text-right px-6 py-3 font-medium text-text-secondary text-xs uppercase tracking-wider">Сумма</th>
+                  <th className="text-right px-6 py-3 font-medium text-text-secondary text-xs uppercase tracking-wider">Дата</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {winners.map((w) => (
+                  <tr key={w.id} className="border-b border-border last:border-0 hover:bg-bg-subtle/50 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold text-white bg-gradient-to-r ${TIER_COLORS[w.tier] || 'from-accent to-accent-hover'}`}>
+                        {w.tier.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-text-secondary">
+                      {w.winnerAddress ? `${w.winnerAddress.slice(0, 8)}...${w.winnerAddress.slice(-4)}` : '\u2014'}
+                    </td>
+                    <td className="px-6 py-4 text-right font-semibold text-success">
+                      {w.winAmount ? `${formatAXM(w.winAmount)} AXM` : '\u2014'}
+                    </td>
+                    <td className="px-6 py-4 text-right text-text-muted text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {w.drawnAt ? new Date(w.drawnAt).toLocaleDateString() : '\u2014'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Info */}
-      <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold">Как это работает</h2>
-        <ul className="space-y-2 text-sm text-text-secondary">
-          <li>Небольшой процент от комиссии каждой игры распределяется по джекпот-пулам.</li>
-          <li>У каждого пула есть целевая сумма. Когда цель достигнута, выбирается случайный победитель.</li>
-          <li>Ваши шансы пропорциональны количеству сыгранных игр — больше игр = больше шансов.</li>
-          <li>После розыгрыша пул обнуляется и начинается новый цикл.</li>
+      {/* How it works */}
+      <div className="bg-bg-card border border-border rounded-2xl p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10">
+            <Info className="w-4 h-4 text-accent" />
+          </div>
+          <h2 className="text-lg font-semibold">Как это работает</h2>
+        </div>
+        <ul className="space-y-3 text-sm text-text-secondary">
+          <li className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-bg-subtle shrink-0 mt-0.5">
+              <span className="text-xs font-bold text-text-muted">1</span>
+            </div>
+            <span>Небольшой процент от комиссии каждой игры распределяется по джекпот-пулам.</span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-bg-subtle shrink-0 mt-0.5">
+              <span className="text-xs font-bold text-text-muted">2</span>
+            </div>
+            <span>У каждого пула есть целевая сумма. Когда цель достигнута, выбирается случайный победитель.</span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-bg-subtle shrink-0 mt-0.5">
+              <span className="text-xs font-bold text-text-muted">3</span>
+            </div>
+            <span>Ваши шансы пропорциональны количеству сыгранных игр — больше игр = больше шансов.</span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-bg-subtle shrink-0 mt-0.5">
+              <span className="text-xs font-bold text-text-muted">4</span>
+            </div>
+            <span>После розыгрыша пул обнуляется и начинается новый цикл.</span>
+          </li>
         </ul>
       </div>
     </div>

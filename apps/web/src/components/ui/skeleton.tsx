@@ -1,18 +1,18 @@
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <div className={`animate-pulse bg-bg-subtle rounded-lg ${className}`} />
+    <div className={`animate-shimmer rounded-lg ${className}`} />
   )
 }
 
 export function SkeletonRow({ cols = 1 }: { cols?: number }) {
   return (
     <div className="flex items-center gap-3 p-4">
-      <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+      <div className="w-8 h-8 rounded-full shrink-0 animate-shimmer" />
       <div className="flex-1 space-y-2">
-        <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-3 w-1/2" />
+        <div className="h-4 w-3/4 rounded animate-shimmer" />
+        <div className="h-3 w-1/2 rounded animate-shimmer" />
       </div>
-      {cols > 1 && <Skeleton className="h-4 w-16" />}
+      {cols > 1 && <div className="h-4 w-16 rounded animate-shimmer" />}
     </div>
   )
 }
@@ -29,12 +29,12 @@ export function SkeletonTable({ rows = 5, cols = 5 }: { rows?: number; cols?: nu
 
 export function SkeletonCard() {
   return (
-    <div className="p-4 bg-bg-card border border-border rounded-xl space-y-3">
+    <div className="bg-bg-card border border-border rounded-2xl p-5 space-y-3">
       <div className="flex items-center gap-3">
-        <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+        <div className="w-10 h-10 rounded-full shrink-0 animate-shimmer" />
         <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-3 w-1/3" />
+          <div className="h-4 w-2/3 rounded animate-shimmer" />
+          <div className="h-3 w-1/3 rounded animate-shimmer" />
         </div>
       </div>
     </div>

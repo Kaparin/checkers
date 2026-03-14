@@ -1,17 +1,32 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useWallet } from '@/contexts/wallet-context'
 import { getBalance } from '@/lib/chain-actions'
+import {
+  Gamepad2,
+  Trophy,
+  Clock,
+  Gift,
+  ShoppingBag,
+  Users,
+  Wallet,
+  ChevronDown,
+  Menu,
+  X,
+  LogOut,
+  User,
+  ArrowLeftRight,
+} from 'lucide-react'
 
 const NAV_LINKS = [
-  { href: '/', label: 'Играть' },
-  { href: '/leaderboard', label: 'Рейтинг' },
-  { href: '/history', label: 'История' },
-  { href: '/jackpot', label: 'Джекпот' },
-  { href: '/shop', label: 'Магазин' },
-  { href: '/referrals', label: 'Рефералы' },
+  { href: '/', label: 'Играть', icon: Gamepad2 },
+  { href: '/leaderboard', label: 'Рейтинг', icon: Trophy },
+  { href: '/history', label: 'История', icon: Clock },
+  { href: '/jackpot', label: 'Джекпот', icon: Gift },
+  { href: '/shop', label: 'Магазин', icon: ShoppingBag },
+  { href: '/referrals', label: 'Рефералы', icon: Users },
 ]
 
 export function Header() {
@@ -19,9 +34,10 @@ export function Header() {
   const { address, isConnected, openConnectModal, disconnect, savedWallets } = useWallet()
   const hasMultipleWallets = savedWallets.length > 1
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [balance, setBalance] = useState<string | null>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
 
-  // Fetch balance when connected
   useEffect(() => {
     if (!address) { setBalance(null); return }
     let cancelled = false
@@ -34,9 +50,23 @@ export function Header() {
       }
     }
     load()
-    const interval = setInterval(load, 30_000) // refresh every 30s
+    const interval = setInterval(load, 30_000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [address])
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  // Close mobile menu on route change
+  useEffect(() => { setMenuOpen(false) }, [pathname])
 
   const formatBalance = (uaxm: string) => {
     const n = Number(uaxm) / 1_000_000
@@ -44,141 +74,163 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-border bg-bg-card/80 backdrop-blur-sm sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-purple-800 shadow-sm" />
-          <span className="text-lg font-bold tracking-tight text-text">Checkers</span>
-        </a>
+    <>
+      <header className="sticky top-0 z-40 border-b border-border bg-bg/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-[72px]">
+            {/* Logo */}
+            <a href="/" className="flex items-center gap-2.5 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center shadow-glow-accent">
+                <Gamepad2 className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-lg font-bold tracking-tight text-text hidden sm:block">
+                Checkers
+              </span>
+            </a>
 
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-4">
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            {NAV_LINKS.map(link => {
-              const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
-              return (
-                <a key={link.href} href={link.href} className={`transition-colors ${isActive ? 'text-accent' : 'text-text-secondary hover:text-text'}`}>
-                  {link.label}
-                </a>
-              )
-            })}
-          </nav>
+            {/* Desktop nav */}
+            <nav className="hidden lg:flex items-center gap-1">
+              {NAV_LINKS.map(link => {
+                const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
+                const Icon = link.icon
+                return (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'text-text bg-bg-subtle'
+                        : 'text-text-secondary hover:text-text hover:bg-bg-subtle'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {link.label}
+                  </a>
+                )
+              })}
+            </nav>
 
-          {isConnected ? (
-            <div className="flex items-center gap-2 ml-2">
-              {/* Balance */}
-              {balance !== null && (
-                <div className="text-xs font-mono text-gold bg-gold/10 px-2 py-1 rounded-lg">
-                  {formatBalance(balance)} AXM
-                </div>
-              )}
-              <a
-                href="/profile"
-                className="text-xs font-mono text-text-secondary px-2 py-1 bg-bg-subtle rounded-lg hover:bg-bg-elevated transition-colors"
-              >
-                {address!.slice(0, 8)}...{address!.slice(-4)}
-              </a>
-              {hasMultipleWallets && (
+            {/* Right section */}
+            <div className="flex items-center gap-2">
+              {isConnected ? (
+                <>
+                  {/* Balance pill */}
+                  {balance !== null && (
+                    <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-bg-subtle rounded-xl text-sm font-medium">
+                      <div className="w-2 h-2 rounded-full bg-success" />
+                      <span className="text-text tabular-nums">{formatBalance(balance)}</span>
+                      <span className="text-text-muted">AXM</span>
+                    </div>
+                  )}
+
+                  {/* Profile dropdown */}
+                  <div className="relative" ref={profileRef}>
+                    <button
+                      onClick={() => setProfileOpen(!profileOpen)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-bg-subtle hover:bg-bg-elevated rounded-xl transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
+                        <User className="w-3.5 h-3.5 text-accent" />
+                      </div>
+                      <span className="text-sm font-mono text-text-secondary hidden sm:block">
+                        {address!.slice(0, 6)}...{address!.slice(-4)}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {profileOpen && (
+                      <div className="absolute right-0 mt-2 w-64 bg-bg-card border border-border rounded-2xl shadow-card-hover overflow-hidden animate-scale-in">
+                        {/* Balance on mobile */}
+                        {balance !== null && (
+                          <div className="sm:hidden px-4 py-3 border-b border-border">
+                            <p className="text-xs text-text-muted mb-1">Баланс</p>
+                            <p className="text-sm font-medium tabular-nums">{formatBalance(balance)} AXM</p>
+                          </div>
+                        )}
+                        <div className="p-1.5">
+                          <a
+                            href="/profile"
+                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-text-secondary hover:text-text hover:bg-bg-subtle transition-colors"
+                            onClick={() => setProfileOpen(false)}
+                          >
+                            <User className="w-4 h-4" />
+                            Профиль
+                          </a>
+                          {hasMultipleWallets && (
+                            <button
+                              onClick={() => { openConnectModal(); setProfileOpen(false) }}
+                              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-text-secondary hover:text-text hover:bg-bg-subtle transition-colors"
+                            >
+                              <ArrowLeftRight className="w-4 h-4" />
+                              Сменить кошелёк
+                            </button>
+                          )}
+                        </div>
+                        <div className="border-t border-border p-1.5">
+                          <button
+                            onClick={() => { disconnect(); setProfileOpen(false) }}
+                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-danger hover:bg-danger/5 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Отключить
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
                 <button
                   onClick={openConnectModal}
-                  className="text-xs text-accent hover:text-accent-hover transition-colors"
-                  title="Переключить кошелёк"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-accent hover:bg-accent-hover rounded-xl shadow-sm transition-colors"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                  </svg>
+                  <Wallet className="w-4 h-4" />
+                  <span className="hidden sm:inline">Подключить</span>
+                  <span className="sm:hidden">Войти</span>
                 </button>
               )}
+
+              {/* Mobile hamburger */}
               <button
-                onClick={disconnect}
-                className="text-xs text-text-muted hover:text-danger transition-colors"
-                title="Отключить"
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="lg:hidden p-2 text-text-secondary hover:text-text hover:bg-bg-subtle rounded-xl transition-colors"
               >
-                &times;
+                {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
             </div>
-          ) : (
-            <button
-              onClick={openConnectModal}
-              className="px-3.5 py-1.5 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors ml-2"
-            >
-              Войти
-            </button>
-          )}
-        </div>
-
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="md:hidden p-2 text-text-secondary hover:text-text transition-colors"
-        >
-          {menuOpen ? (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          )}
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="md:hidden border-t border-border bg-bg-card px-4 py-3 space-y-1">
-          {NAV_LINKS.map(link => {
-            const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
-            return (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className={`block px-3 py-2 text-sm font-medium rounded-lg transition-colors ${isActive ? 'text-accent bg-accent/5' : 'text-text-secondary hover:text-text hover:bg-bg-subtle'}`}
-              >
-                {link.label}
-              </a>
-            )
-          })}
-          <div className="border-t border-border pt-2 mt-2">
-            {isConnected ? (
-              <div className="space-y-2">
-                {/* Balance on mobile */}
-                {balance !== null && (
-                  <div className="px-3 py-1.5 text-xs font-mono text-gold">
-                    Баланс: {formatBalance(balance)} AXM
-                  </div>
-                )}
-                <div className="flex items-center justify-between px-3 py-2">
-                  <a href="/profile" onClick={() => setMenuOpen(false)} className="text-xs font-mono text-text-secondary">
-                    {address!.slice(0, 8)}...{address!.slice(-4)}
-                  </a>
-                  <div className="flex items-center gap-3">
-                    {hasMultipleWallets && (
-                      <button
-                        onClick={() => { openConnectModal(); setMenuOpen(false) }}
-                        className="text-xs text-accent"
-                      >
-                        Сменить
-                      </button>
-                    )}
-                    <button onClick={disconnect} className="text-xs text-danger">
-                      Выйти
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => { openConnectModal(); setMenuOpen(false) }}
-                className="w-full px-3 py-2 text-sm font-medium text-white bg-accent rounded-lg"
-              >
-                Подключить кошелёк
-              </button>
-            )}
           </div>
         </div>
+      </header>
+
+      {/* Mobile menu overlay */}
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setMenuOpen(false)} />
+          <div className="fixed top-[73px] left-0 right-0 z-30 bg-bg-card border-b border-border lg:hidden animate-slide-down">
+            <nav className="max-w-7xl mx-auto px-4 py-3 space-y-0.5">
+              {NAV_LINKS.map(link => {
+                const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
+                const Icon = link.icon
+                return (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'text-text bg-bg-subtle'
+                        : 'text-text-secondary hover:text-text hover:bg-bg-subtle'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {link.label}
+                  </a>
+                )
+              })}
+            </nav>
+          </div>
+        </>
       )}
-    </header>
+    </>
   )
 }

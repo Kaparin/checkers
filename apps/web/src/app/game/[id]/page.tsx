@@ -17,6 +17,7 @@ import { useWallet } from '@/contexts/wallet-context'
 import { deserializeGameState, playGameOverSound } from './imports'
 import { Skeleton, SkeletonBoard } from '@/components/ui/skeleton'
 import { GameChat } from '@/components/ui/game-chat'
+import { ChevronLeft, ClipboardList, Flag, Handshake, Loader2 } from 'lucide-react'
 import type { GameState, PieceColor } from '@checkers/shared'
 
 export default function GamePage({ params }: { params: Promise<{ id: string }> }) {
@@ -442,23 +443,21 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   return (
     <div className="fixed inset-0 bg-bg flex flex-col">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg-card shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg-card/80 backdrop-blur-xl shrink-0">
         <button
           onClick={() => tryNavigate(() => router.push('/'))}
-          className="text-sm text-text-secondary hover:text-text transition-colors"
+          className="p-1.5 text-text-secondary hover:text-text hover:bg-bg-subtle rounded-lg transition-colors"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="w-5 h-5" />
         </button>
 
         <div className="flex items-center gap-2.5">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase ${
-            variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-board-dark/10 text-board-dark'
+          <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold uppercase ${
+            variant === 'russian' ? 'bg-accent/10 text-accent' : 'bg-warning/10 text-warning'
           }`}>
             {variant === 'russian' ? 'RUS' : 'USA'}
           </span>
-          <span className="text-xs font-medium text-text-secondary">
+          <span className="text-sm font-semibold text-text tabular-nums">
             {(Number(wager) / 1_000_000).toFixed(0)} AXM
           </span>
         </div>
@@ -467,12 +466,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           {!isWaiting && (
             <button
               onClick={() => setShowMoves(!showMoves)}
-              className="text-text-muted hover:text-text transition-colors"
+              className="p-1.5 text-text-muted hover:text-text hover:bg-bg-subtle rounded-lg transition-colors"
               title="Ходы"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+              <ClipboardList className="w-4.5 h-4.5" />
             </button>
           )}
           <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : reconnecting ? 'bg-warning animate-pulse' : 'bg-danger'}`} title={connected ? 'Подключено' : reconnecting ? 'Переподключение...' : 'Нет связи'} />
@@ -502,24 +499,24 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             {/* CREATOR view: waiting for opponent */}
             {isCreator && (
               <>
-                <div className="px-6 py-4 bg-bg-card border border-border rounded-xl text-center space-y-2">
-                  <div className="w-6 h-6 mx-auto border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-text-secondary">Ожидание соперника...</p>
-                  <p className="text-[10px] text-text-muted">Игра автоматически отменится через 30 минут, если никто не присоединится</p>
+                <div className="px-6 py-5 bg-bg-card border border-border rounded-2xl text-center space-y-3">
+                  <Loader2 className="w-6 h-6 mx-auto text-accent animate-spin" />
+                  <p className="text-sm font-medium text-text-secondary">Ожидание соперника...</p>
+                  <p className="text-xs text-text-muted">Автоотмена через 30 минут</p>
                 </div>
                 <InviteLink gameId={gameId} />
                 <button
                   onClick={handleCancel}
-                  className="w-full py-2.5 text-sm font-medium text-danger border border-danger/30 rounded-xl hover:bg-danger/5 transition-colors"
+                  className="w-full py-2.5 text-sm font-semibold text-danger border border-danger/20 rounded-xl hover:bg-danger/5 transition-colors"
                 >
-                  Отменить
+                  Отменить игру
                 </button>
               </>
             )}
 
             {/* GUEST view: can join the game */}
             {canJoin && (
-              <div className="px-6 py-5 bg-bg-card border border-border rounded-xl text-center space-y-4">
+              <div className="px-6 py-6 bg-bg-card border border-border rounded-2xl text-center space-y-4">
                 <div className="space-y-1">
                   <p className="text-lg font-bold">Приглашение в игру</p>
                   <p className="text-sm text-text-secondary">
@@ -532,7 +529,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 <button
                   onClick={handleJoinGame}
                   disabled={joiningGame}
-                  className="w-full py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover transition-colors disabled:opacity-50"
+                  className="w-full py-3 bg-accent text-white font-semibold rounded-xl hover:bg-accent-hover transition-all hover:shadow-glow-accent disabled:opacity-50"
                 >
                   {joiningGame
                     ? 'Подключение...'
@@ -589,13 +586,14 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               <button
                 onClick={handleReady}
                 disabled={readyLoading}
-                className="w-full py-3 bg-success text-white font-semibold rounded-xl hover:bg-success/90 transition-colors disabled:opacity-50"
+                className="w-full py-3 bg-success text-white font-semibold rounded-xl hover:bg-success/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
+                {readyLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {readyLoading ? 'Подтверждение...' : 'Начать игру'}
               </button>
             ) : (
-              <div className="px-4 py-3 bg-bg-card border border-border rounded-xl text-center">
-                <div className="w-5 h-5 mx-auto mb-1 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <div className="px-4 py-3 bg-bg-card border border-border rounded-2xl text-center">
+                <Loader2 className="w-5 h-5 mx-auto mb-1.5 text-accent animate-spin" />
                 <p className="text-sm text-text-secondary">Ожидание подтверждения соперника...</p>
               </div>
             )}
@@ -604,10 +602,11 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
         {/* Draw offer banner */}
         {drawPending && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-warning/10 border border-warning/30 rounded-lg w-full max-w-md">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-warning/10 border border-warning/20 rounded-xl w-full max-w-md">
+            <Handshake className="w-4 h-4 text-warning shrink-0" />
             <span className="text-xs font-medium text-warning flex-1">Предложение ничьи</span>
-            <button onClick={handleDrawAccept} className="px-2.5 py-1 bg-success text-white text-xs font-medium rounded-md">Принять</button>
-            <button onClick={() => { setDrawPending(false); toast('Ничья отклонена') }} className="px-2.5 py-1 bg-bg-subtle text-text-secondary text-xs font-medium rounded-md">Отклонить</button>
+            <button onClick={handleDrawAccept} className="px-3 py-1.5 bg-success text-white text-xs font-semibold rounded-lg">Принять</button>
+            <button onClick={() => { setDrawPending(false); toast('Ничья отклонена') }} className="px-3 py-1.5 bg-bg-subtle text-text-secondary text-xs font-semibold rounded-lg border border-border">Отклонить</button>
           </div>
         )}
 
@@ -636,21 +635,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             <button
               onClick={handleDrawOffer}
               disabled={drawOffered}
-              className="px-3 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg hover:border-border-hover transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-text-secondary bg-bg-subtle border border-border rounded-xl hover:border-border-hover transition-colors disabled:opacity-40"
             >
+              <Handshake className="w-3.5 h-3.5" />
               {drawOffered ? 'Предложена' : 'Ничья'}
             </button>
             {showResignConfirm ? (
               <div className="flex gap-1.5 items-center">
-                <span className="text-[10px] text-danger">Точно?</span>
-                <button onClick={handleResign} className="px-2.5 py-1.5 text-xs font-medium text-white bg-danger rounded-lg">Да</button>
-                <button onClick={() => setShowResignConfirm(false)} className="px-2.5 py-1.5 text-xs font-medium text-text-secondary border border-border rounded-lg">Нет</button>
+                <span className="text-xs text-danger font-medium">Точно?</span>
+                <button onClick={handleResign} className="px-3 py-2 text-xs font-semibold text-white bg-danger rounded-xl">Да</button>
+                <button onClick={() => setShowResignConfirm(false)} className="px-3 py-2 text-xs font-semibold text-text-secondary bg-bg-subtle border border-border rounded-xl">Нет</button>
               </div>
             ) : (
               <button
                 onClick={() => setShowResignConfirm(true)}
-                className="px-3 py-1.5 text-xs font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger/5 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-danger border border-danger/20 rounded-xl hover:bg-danger/5 transition-colors"
               >
+                <Flag className="w-3.5 h-3.5" />
                 Сдаться
               </button>
             )}
@@ -661,7 +662,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         {isSpectator && isFinished && (
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-colors"
+            className="px-5 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
           >
             В лобби
           </button>
