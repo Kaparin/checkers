@@ -73,14 +73,18 @@ async function hasAuthzGrant(address: string): Promise<boolean | null> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000)
-    const res = await fetch(
-      `${AXIOME_REST}/cosmos/authz/v1beta1/grants?granter=${address}&grantee=${grantee}`,
-      { signal: controller.signal },
-    ).finally(() => clearTimeout(timeout))
-    if (!res.ok) return null // network/server issue — don't block
+    const url = `${AXIOME_REST}/cosmos/authz/v1beta1/grants?granter=${address}&grantee=${grantee}`
+    console.log(`[authz] Checking grants: ${url}`)
+    const res = await fetch(url, { signal: controller.signal })
+      .finally(() => clearTimeout(timeout))
+    if (!res.ok) {
+      console.warn(`[authz] REST responded ${res.status} for ${address.slice(0, 12)}...`)
+      return null
+    }
     const data = await res.json() as any
     const grants = data.grants || []
-    return grants.some((g: any) => {
+    console.log(`[authz] Found ${grants.length} grants for ${address.slice(0, 12)}...`, JSON.stringify(grants).slice(0, 500))
+    const hasGrant = grants.some((g: any) => {
       const auth = g.authorization
       if (!auth) return false
       return (
@@ -89,9 +93,11 @@ async function hasAuthzGrant(address: string): Promise<boolean | null> {
           auth.msg === '/cosmwasm.wasm.v1.MsgExecuteContract')
       )
     })
-  } catch {
-    console.warn(`[authz] Check failed for ${address} — proceeding anyway`)
-    return null // network error — don't block, let relay handle it
+    console.log(`[authz] hasGrant=${hasGrant} for ${address.slice(0, 12)}...`)
+    return hasGrant
+  } catch (err) {
+    console.warn(`[authz] Check failed for ${address.slice(0, 12)}...:`, err)
+    return null
   }
 }
 

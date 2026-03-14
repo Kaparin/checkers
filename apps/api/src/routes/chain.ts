@@ -47,13 +47,20 @@ chainRoutes.get('/authz/:address', async (c) => {
   if (!grantee) return c.json({ hasGrant: false })
 
   try {
-    const res = await fetch(
-      `${AXIOME_REST}/cosmos/authz/v1beta1/grants?granter=${granter}&grantee=${grantee}`
-    )
-    if (!res.ok) return c.json({ hasGrant: false })
+    const url = `${AXIOME_REST}/cosmos/authz/v1beta1/grants?granter=${granter}&grantee=${grantee}`
+    console.log(`[chain/authz] Querying: ${url}`)
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.warn(`[chain/authz] REST responded ${res.status}`)
+      return c.json({ hasGrant: false })
+    }
 
     const data = await res.json() as any
     const grants = data.grants || []
+    console.log(`[chain/authz] Found ${grants.length} grants for ${granter.slice(0, 12)}...`)
+    if (grants.length > 0) {
+      console.log(`[chain/authz] Grants:`, JSON.stringify(grants).slice(0, 1000))
+    }
 
     // Check for ContractExecutionAuthorization or generic MsgExecuteContract
     const hasGrant = grants.some((g: any) => {
@@ -66,8 +73,10 @@ chainRoutes.get('/authz/:address', async (c) => {
       )
     })
 
+    console.log(`[chain/authz] hasGrant=${hasGrant} for ${granter.slice(0, 12)}...`)
     return c.json({ hasGrant, grantCount: grants.length })
-  } catch {
+  } catch (err) {
+    console.error(`[chain/authz] Error:`, err)
     return c.json({ hasGrant: false })
   }
 })
