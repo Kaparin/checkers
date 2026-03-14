@@ -239,6 +239,13 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
       console.error(`[relay:create] Game ${game.id} FAILED:`, errMsg)
       // Rollback: delete game from DB since on-chain lock failed
       await db.delete(games).where(eq(games.id, game.id))
+      // Friendly error for common chain errors
+      if (errMsg.includes('unauthorized')) {
+        return c.json({ error: 'Вы не авторизовали релеер. Нажмите "Авторизовать" на главной странице.' }, 403)
+      }
+      if (errMsg.includes('insufficient funds') || errMsg.includes('insufficient fee')) {
+        return c.json({ error: 'Недостаточно средств на счёте для этой ставки.' }, 400)
+      }
       return c.json({ error: `Ошибка блокчейна: ${errMsg.slice(0, 200)}` }, 500)
     }
   }
@@ -388,11 +395,16 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
           startedAt: null,
           currentTurnDeadline: null,
         }).where(eq(games.id, gameId))
+        const friendlyErr = errMsg.includes('unauthorized')
+          ? 'Оппонент не авторизовал релеер. Попросите его нажать "Авторизовать".'
+          : errMsg.includes('insufficient funds')
+          ? 'У оппонента недостаточно средств.'
+          : `Ошибка блокчейна: ${errMsg.slice(0, 150)}`
         broadcastToGame(gameId, {
           type: 'game:join_failed',
-          error: `Ошибка блокчейна: ${errMsg.slice(0, 150)}`,
+          error: friendlyErr,
         })
-        return c.json({ error: `Ошибка блокчейна: ${errMsg.slice(0, 200)}` }, 500)
+        return c.json({ error: friendlyErr }, 500)
       }
     }
 
