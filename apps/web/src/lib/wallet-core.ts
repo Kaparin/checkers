@@ -37,7 +37,7 @@ export async function deriveWallet(mnemonic: string) {
   return { wallet, address: account.address, pubkey: account.pubkey }
 }
 
-function stringToHdPath(path: string) {
+export function stringToHdPath(path: string) {
   const parts = path.replace('m/', '').split('/')
   return parts.map(part => {
     const hardened = part.endsWith("'")

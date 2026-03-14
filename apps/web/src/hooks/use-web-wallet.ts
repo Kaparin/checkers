@@ -14,6 +14,7 @@ import {
   saveSessionWallet,
   loadSessionWallet,
   clearSessionWallet,
+  stringToHdPath,
   type SavedWallet,
 } from '@/lib/wallet-core'
 import { signChallenge } from '@/lib/wallet-signer'
@@ -26,7 +27,7 @@ import {
   getStoredAddress,
   getStoredToken,
 } from '@/lib/auth-headers'
-import { AXIOME_PREFIX } from '@checkers/shared/chain'
+import { AXIOME_PREFIX, AXIOME_HD_PATH } from '@checkers/shared/chain'
 
 export interface UseWebWalletReturn {
   address: string | null
@@ -125,6 +126,7 @@ export function useWebWallet(): UseWebWalletReturn {
       // Save serialized wallet to sessionStorage for refresh survival
       const wallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic.trim(), {
         prefix: AXIOME_PREFIX,
+        hdPaths: [stringToHdPath(AXIOME_HD_PATH)],
       })
       saveSessionWallet(await wallet.serialize('session-password'))
 
@@ -165,6 +167,7 @@ export function useWebWallet(): UseWebWalletReturn {
       // Save to session
       const wallet = await DirectSecp256k1HdWallet.fromMnemonic(mnemonic.trim(), {
         prefix: AXIOME_PREFIX,
+        hdPaths: [stringToHdPath(AXIOME_HD_PATH)],
       })
       saveSessionWallet(await wallet.serialize('session-password'))
 
