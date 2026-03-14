@@ -62,6 +62,34 @@ function parseRawGameState(raw: unknown): Record<string, unknown> {
 
 export const gameRoutes = new Hono()
 
+/** Check if user has granted authz to relayer (server-side) */
+async function hasAuthzGrant(address: string): Promise<boolean> {
+  const grantee = relayer.getAddress()
+  if (!grantee) return false
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(
+      `${AXIOME_REST}/cosmos/authz/v1beta1/grants?granter=${address}&grantee=${grantee}`,
+      { signal: controller.signal },
+    ).finally(() => clearTimeout(timeout))
+    if (!res.ok) return false
+    const data = await res.json() as any
+    const grants = data.grants || []
+    return grants.some((g: any) => {
+      const auth = g.authorization
+      if (!auth) return false
+      return (
+        auth['@type'] === '/cosmwasm.wasm.v1.ContractExecutionAuthorization' ||
+        (auth['@type'] === '/cosmos.authz.v1beta1.GenericAuthorization' &&
+          auth.msg === '/cosmwasm.wasm.v1.MsgExecuteContract')
+      )
+    })
+  } catch {
+    return false
+  }
+}
+
 /**
  * Fire relayer call in background with retry — never blocks the API response.
  * Retries up to 3 times with exponential backoff (2s, 4s, 8s).
@@ -185,6 +213,13 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
 
   // Synchronous: lock wager on-chain (must succeed before game is available)
   if (relayer.isReady && wager !== '0') {
+    // Check authz grant before attempting relay
+    const granted = await hasAuthzGrant(address)
+    if (!granted) {
+      await db.delete(games).where(eq(games.id, game.id))
+      return c.json({ error: 'Вы не авторизовали релеер. Нажмите "Авторизовать" на главной странице.' }, 403)
+    }
+
     try {
       const { txHash, onChainGameId } = await relayer.relayCreateGame(
         address, variant, timePerMove, wager, AXIOME_DENOM,
@@ -195,10 +230,11 @@ gameRoutes.post('/', requireAuth, zValidator('json', CreateGameSchema), async (c
         txHashCreate: txHash,
       }).where(eq(games.id, game.id))
     } catch (err: any) {
-      console.error(`[relay:create] Game ${game.id} FAILED:`, err?.message || err)
+      const errMsg = err?.message || String(err)
+      console.error(`[relay:create] Game ${game.id} FAILED:`, errMsg)
       // Rollback: delete game from DB since on-chain lock failed
       await db.delete(games).where(eq(games.id, game.id))
-      return c.json({ error: 'Не удалось заблокировать ставку в блокчейне. Попробуйте снова.' }, 500)
+      return c.json({ error: `Ошибка блокчейна: ${errMsg.slice(0, 200)}` }, 500)
     }
   }
 
@@ -311,15 +347,25 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
       return c.json({ success: true, blackReady: fresh.blackReady, whiteReady: fresh.whiteReady })
     }
 
-    broadcastToGame(gameId, {
-      type: WS_EVENTS.GAME_BOTH_READY,
-      game: started,
-    })
-
-    logEvent(db, 'game_started', undefined, gameId)
-
-    // Synchronous: lock joiner's wager on-chain (must succeed before game starts)
+    // Synchronous: lock joiner's wager on-chain BEFORE broadcasting game start
     if (relayer.isReady && game.onChainGameId && game.wager !== '0' && game.whitePlayer) {
+      // Check authz grant for joiner
+      const joinerGranted = await hasAuthzGrant(game.whitePlayer!)
+      if (!joinerGranted) {
+        await db.update(games).set({
+          status: 'ready_check',
+          blackReady: false,
+          whiteReady: false,
+          startedAt: null,
+          currentTurnDeadline: null,
+        }).where(eq(games.id, gameId))
+        broadcastToGame(gameId, {
+          type: 'game:join_failed',
+          error: 'Оппонент не авторизовал релеер. Попросите его нажать "Авторизовать".',
+        })
+        return c.json({ error: 'Оппонент не авторизовал релеер' }, 403)
+      }
+
       try {
         const txHash = await relayer.relayJoinGame(
           game.whitePlayer!, game.onChainGameId!, game.wager, AXIOME_DENOM,
@@ -327,7 +373,8 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
         console.log(`[relay:join] Game ${gameId} on-chain #${game.onChainGameId} tx=${txHash.slice(0, 12)}...`)
         await db.update(games).set({ txHashJoin: txHash }).where(eq(games.id, gameId))
       } catch (err: any) {
-        console.error(`[relay:join] Game ${gameId} FAILED:`, err?.message || err)
+        const errMsg = err?.message || String(err)
+        console.error(`[relay:join] Game ${gameId} FAILED:`, errMsg)
         // Revert game back to ready_check — don't start without on-chain backing
         await db.update(games).set({
           status: 'ready_check',
@@ -338,11 +385,18 @@ gameRoutes.post('/:id/ready', requireAuth, async (c) => {
         }).where(eq(games.id, gameId))
         broadcastToGame(gameId, {
           type: 'game:join_failed',
-          error: 'Не удалось заблокировать ставку оппонента в блокчейне. Нажмите "Готов" снова.',
+          error: `Ошибка блокчейна: ${errMsg.slice(0, 150)}`,
         })
-        return c.json({ error: 'Не удалось заблокировать ставку в блокчейне' }, 500)
+        return c.json({ error: `Ошибка блокчейна: ${errMsg.slice(0, 200)}` }, 500)
       }
     }
+
+    // Broadcast game start AFTER relay succeeds
+    broadcastToGame(gameId, {
+      type: WS_EVENTS.GAME_BOTH_READY,
+      game: started,
+    })
+    logEvent(db, 'game_started', undefined, gameId)
   }
 
   return c.json({ success: true, blackReady: fresh.blackReady, whiteReady: fresh.whiteReady })

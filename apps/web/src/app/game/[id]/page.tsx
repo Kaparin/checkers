@@ -177,6 +177,15 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           setGameState(parseGameState(game))
         }
       }
+      if (msg.type === 'game:join_failed') {
+        const errMsg = (msg.error as string) || 'Ошибка блокчейна при старте игры'
+        toast(errMsg, 'error')
+        // Revert UI to ready_check state
+        setIsReadyCheck(true)
+        setMyReady(false)
+        setOpponentReady(false)
+        setReadyLoading(false)
+      }
       if (msg.type === 'game:canceled') {
         toast('Игра отменена', 'error')
         setTimeout(() => router.push('/'), 1500)
