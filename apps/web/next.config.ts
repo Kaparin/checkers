@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@checkers/shared'],
   async rewrites() {
     return [
+      // Exact match for Tendermint JSON-RPC (POST to root)
+      {
+        source: '/chain-rpc',
+        destination: 'http://49.13.3.227:26657/',
+      },
       {
         source: '/chain-rpc/:path*',
         destination: 'http://49.13.3.227:26657/:path*',

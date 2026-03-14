@@ -72,33 +72,55 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
     try {
       const config = await getChainConfig()
       if (!config.relayerAddress || !config.contractAddress) {
-        throw new Error('Сеть не настроена')
+        throw new Error('Сеть не настроена: relayer или контракт не указаны')
       }
+
       setGrantStep('Проверка баланса...')
       const bal = await getBalance(address)
+      console.log('[authz] Balance:', bal)
+
       if (Number(bal) < 50000) {
-        setGrantStep('Получение газа...')
-        await requestGasFunding()
-        await new Promise(r => setTimeout(r, 4000))
+        setGrantStep('Получение газа для транзакции...')
+        try {
+          await requestGasFunding()
+          // Wait for funding tx to be included
+          await new Promise(r => setTimeout(r, 4000))
+        } catch (fundErr) {
+          console.error('[authz] Gas funding failed:', fundErr)
+          // Continue anyway — maybe they have enough gas, or will get a clearer error on sign
+        }
       }
-      setGrantStep('Подпишите транзакцию...')
-      await grantAuthzToRelayer(address, config.relayerAddress, config.contractAddress)
-      setGrantStep('Подтверждение...')
-      await new Promise(r => setTimeout(r, 5000))
+
+      setGrantStep('Подписание транзакции...')
+      const txHash = await grantAuthzToRelayer(address, config.relayerAddress, config.contractAddress)
+      console.log('[authz] Grant tx hash:', txHash)
+
+      setGrantStep('Ожидание подтверждения...')
+      // Wait for tx to be included in a block
+      await new Promise(r => setTimeout(r, 6000))
+
       const granted = await checkAuthzGrant(address)
       if (granted) {
         setHasAuthz(true)
         setCreateError(null)
       } else {
+        // Retry once more after delay
         await new Promise(r => setTimeout(r, 5000))
         const g2 = await checkAuthzGrant(address)
-        setHasAuthz(g2 || null)
-        if (g2) setCreateError(null)
+        if (g2) {
+          setHasAuthz(true)
+          setCreateError(null)
+        } else {
+          setCreateError('Транзакция отправлена, но грант ещё не подтверждён. Попробуйте через минуту.')
+        }
       }
     } catch (err) {
+      console.error('[authz] Grant failed:', err)
       const msg = err instanceof Error ? err.message : 'Ошибка авторизации'
-      if (msg.includes('account from signer')) {
+      if (msg.includes('account from signer') || msg.includes('десериализации')) {
         setCreateError('Не удалось получить аккаунт. Переподключите кошелёк.')
+      } else if (msg.includes('не найден')) {
+        setCreateError('Кошелёк не найден. Переподключите кошелёк.')
       } else {
         setCreateError(msg)
       }
