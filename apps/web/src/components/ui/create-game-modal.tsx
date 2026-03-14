@@ -88,9 +88,12 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       const granted = await checkAuthzGrant(address)
       if (granted) {
         setHasAuthz(true)
+        setCreateError(null)
       } else {
         await new Promise(r => setTimeout(r, 5000))
-        setHasAuthz(await checkAuthzGrant(address))
+        const g2 = await checkAuthzGrant(address)
+        setHasAuthz(g2 || null)
+        if (g2) setCreateError(null)
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка авторизации'
@@ -128,7 +131,12 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
     try {
       await onCreate(String(wager * 1_000_000), timePerMove, variant)
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Ошибка создания игры')
+      const msg = err instanceof Error ? err.message : 'Ошибка создания игры'
+      setCreateError(msg)
+      // If backend says "not authorized" — show the authorize button
+      if (msg.includes('не авторизовали') || msg.includes('unauthorized')) {
+        setHasAuthz(false)
+      }
       setCreating(false)
       return
     }
@@ -270,8 +278,27 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
 
           {/* Error */}
           {createError && (
-            <div className="px-4 py-3 bg-danger/10 border border-danger/20 rounded-xl">
-              <p className="text-xs text-danger">{createError}</p>
+            <div className={`px-4 py-3 rounded-xl border ${
+              hasAuthz === false
+                ? 'bg-accent/5 border-accent/20'
+                : 'bg-danger/10 border-danger/20'
+            }`}>
+              <p className={`text-xs ${hasAuthz === false ? 'text-accent' : 'text-danger'}`}>{createError}</p>
+              {hasAuthz === false && !granting && (
+                <button
+                  onClick={handleGrantAuthz}
+                  className="mt-2 w-full py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors flex items-center justify-center gap-2"
+                >
+                  <Shield className="w-4 h-4" />
+                  Авторизовать сейчас
+                </button>
+              )}
+              {granting && (
+                <div className="mt-2 flex items-center justify-center gap-2 py-2 text-sm text-accent">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {grantStep || 'Авторизация...'}
+                </div>
+              )}
             </div>
           )}
 
