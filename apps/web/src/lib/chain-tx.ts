@@ -118,8 +118,7 @@ async function broadcastTxSync(txBytes: Uint8Array): Promise<{ txHash: string; c
   const result = data.result || {}
 
   if (result.code && result.code !== 0) {
-    console.error('[chain-tx] Tx rejected:', result.log, result.codespace)
-    throw new Error(`Транзакция отклонена: ${result.log || result.codespace || 'неизвестная ошибка'}`)
+    console.error('[chain-tx] Tx rejected:', result.code, result.log, result.codespace)
   }
 
   return {
@@ -206,32 +205,43 @@ export async function grantAuthzToRelayer(
     gasPrice: GasPrice.fromString(AXIOME_GAS_PRICE),
   })
 
-  // Step 5: Get account info for signing
-  console.log('[chain-tx] Fetching account info...')
-  const { accountNumber, sequence } = await getAccountInfo(userAddress)
-  console.log('[chain-tx] Account info:', { accountNumber, sequence })
-
-  // Step 6: Sign the transaction
-  console.log('[chain-tx] Signing transaction...')
+  // Step 5-7: Sign and broadcast with sequence retry
   const fee = { amount: [{ denom: 'uaxm', amount: '10000' }], gas: '200000' }
-  const signedTx = await client.sign(
-    userAddress,
-    [grantMsg],
-    fee,
-    '',
-    { accountNumber, sequence, chainId: 'axiome-1' },
-  )
+  const maxRetries = 3
 
-  // Step 7: Broadcast
-  console.log('[chain-tx] Broadcasting transaction...')
-  const txBytes = TxRaw.encode(signedTx).finish()
-  console.log('[chain-tx] Tx bytes length:', txBytes.length)
-  const result = await broadcastTxSync(txBytes)
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    console.log('[chain-tx] Fetching account info...')
+    const { accountNumber, sequence } = await getAccountInfo(userAddress)
+    console.log('[chain-tx] Account info:', { accountNumber, sequence })
 
-  if (result.code !== 0) {
+    console.log('[chain-tx] Signing transaction...')
+    const signedTx = await client.sign(
+      userAddress,
+      [grantMsg],
+      fee,
+      '',
+      { accountNumber, sequence, chainId: 'axiome-1' },
+    )
+
+    console.log('[chain-tx] Broadcasting transaction...')
+    const txBytes = TxRaw.encode(signedTx).finish()
+    console.log('[chain-tx] Tx bytes length:', txBytes.length)
+    const result = await broadcastTxSync(txBytes)
+
+    if (result.code === 0) {
+      console.log('[chain-tx] Authz grant success! TxHash:', result.txHash)
+      return result.txHash
+    }
+
+    // Sequence mismatch (code 32) — retry with fresh account info
+    if (result.code === 32 && attempt < maxRetries - 1) {
+      console.warn(`[chain-tx] Sequence mismatch, retrying (${attempt + 1}/${maxRetries})...`)
+      await new Promise(r => setTimeout(r, 1000))
+      continue
+    }
+
     throw new Error(`Authz grant failed (code ${result.code}): ${result.log}`)
   }
 
-  console.log('[chain-tx] Authz grant success! TxHash:', result.txHash)
-  return result.txHash
+  throw new Error('Authz grant failed after retries')
 }

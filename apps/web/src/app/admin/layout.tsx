@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { getAdminSecret, setAdminSecret } from '@/lib/admin-api'
+import Image from 'next/image'
 import {
   LayoutDashboard,
   Users,
@@ -89,10 +90,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="w-60 bg-bg-card border-r border-border shrink-0 hidden md:flex md:flex-col">
         <div className="p-5 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <Gamepad2 className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-sm">Checkers Admin</span>
+            <Image
+              src="/checkers-logo-with-text2.png"
+              alt="Checkers"
+              width={120}
+              height={36}
+              className="h-8 w-auto"
+            />
           </div>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">

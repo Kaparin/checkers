@@ -6,13 +6,18 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Шашки — Играй и Зарабатывай',
+  title: 'Checkers — Play & Earn',
   description: 'Играй в шашки на ставку в блокчейне Axiome',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/checkers-logo.png',
+    apple: '/checkers-logo.png',
+  },
   openGraph: {
-    title: 'Шашки — Играй и Зарабатывай',
+    title: 'Checkers — Play & Earn',
     description: 'Играй в шашки на ставку в блокчейне Axiome',
     type: 'website',
+    images: ['/checkers-logo-with-text2.png'],
   },
 }
 

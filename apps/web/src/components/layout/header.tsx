@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useWallet } from '@/contexts/wallet-context'
 import { getBalance } from '@/lib/chain-actions'
+import Image from 'next/image'
 import {
-  Gamepad2,
   Trophy,
   Clock,
   Gift,
@@ -18,6 +18,7 @@ import {
   LogOut,
   User,
   ArrowLeftRight,
+  Gamepad2,
 } from 'lucide-react'
 
 const NAV_LINKS = [
@@ -79,13 +80,15 @@ export function Header() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-[72px]">
             {/* Logo */}
-            <a href="/" className="flex items-center gap-2.5 shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center shadow-glow-accent">
-                <Gamepad2 className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-lg font-bold tracking-tight text-text hidden sm:block">
-                Checkers
-              </span>
+            <a href="/" className="flex items-center gap-2 shrink-0">
+              <Image
+                src="/checkers-logo-with-text2.png"
+                alt="Checkers"
+                width={160}
+                height={48}
+                className="h-10 w-auto sm:h-12"
+                priority
+              />
             </a>
 
             {/* Desktop nav */}

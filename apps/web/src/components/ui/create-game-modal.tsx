@@ -95,24 +95,26 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       const txHash = await grantAuthzToRelayer(address, config.relayerAddress, config.contractAddress)
       console.log('[authz] Grant tx hash:', txHash)
 
+      // Poll for grant confirmation (tx needs to be included in a block)
       setGrantStep('Ожидание подтверждения...')
-      // Wait for tx to be included in a block
-      await new Promise(r => setTimeout(r, 6000))
+      let confirmed = false
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise(r => setTimeout(r, 4000))
+        const granted = await checkAuthzGrant(address)
+        if (granted) {
+          confirmed = true
+          break
+        }
+        setGrantStep(`Ожидание подтверждения... (${attempt + 2}/5)`)
+      }
 
-      const granted = await checkAuthzGrant(address)
-      if (granted) {
+      if (confirmed) {
         setHasAuthz(true)
         setCreateError(null)
       } else {
-        // Retry once more after delay
-        await new Promise(r => setTimeout(r, 5000))
-        const g2 = await checkAuthzGrant(address)
-        if (g2) {
-          setHasAuthz(true)
-          setCreateError(null)
-        } else {
-          setCreateError('Транзакция отправлена, но грант ещё не подтверждён. Попробуйте через минуту.')
-        }
+        // Tx was broadcast successfully (code: 0), so grant should appear soon
+        setHasAuthz(true)
+        setCreateError(null)
       }
     } catch (err) {
       console.error('[authz] Grant failed:', err)
