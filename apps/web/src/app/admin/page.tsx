@@ -1,31 +1,39 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getDashboard } from '@/lib/admin-api'
+import { getDashboard, getRelayerStatus, getStuckFunds } from '@/lib/admin-api'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function AdminDashboard() {
   const [data, setData] = useState<any>(null)
+  const [relayer, setRelayer] = useState<any>(null)
+  const [stuckFunds, setStuckFunds] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getDashboard()
-      .then(setData)
+    Promise.all([
+      getDashboard(),
+      getRelayerStatus().catch(() => null),
+      getStuckFunds().catch(() => null),
+    ])
+      .then(([d, r, sf]) => {
+        setData(d)
+        setRelayer(r)
+        setStuckFunds(sf)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
 
-  if (error) {
-    return <div className="text-danger text-sm">{error}</div>
-  }
+  if (error) return <div className="text-danger text-sm">{error}</div>
 
   if (loading || !data) {
     return (
       <div className="space-y-6">
         <h1 className="text-xl font-bold">Dashboard</h1>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }, (_, i) => (
+          {Array.from({ length: 8 }, (_, i) => (
             <div key={i} className="p-4 bg-bg-card border border-border rounded-xl space-y-2">
               <Skeleton className="h-3 w-16" />
               <Skeleton className="h-6 w-24" />
@@ -46,6 +54,38 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold">Dashboard</h1>
+
+      {/* Relayer status */}
+      {relayer && (
+        <div className={`p-4 rounded-xl border ${relayer.ready ? 'bg-success/5 border-success/30' : 'bg-danger/10 border-danger/30'}`}>
+          <div className="flex items-center gap-3">
+            <span className={`w-2.5 h-2.5 rounded-full ${relayer.ready ? 'bg-success animate-pulse' : 'bg-danger'}`} />
+            <div>
+              <p className="text-sm font-medium">{relayer.ready ? 'Relayer Active' : 'Relayer Offline'}</p>
+              {relayer.address && (
+                <p className="text-xs text-text-muted font-mono mt-0.5">
+                  {relayer.address.slice(0, 12)}...{relayer.address.slice(-6)}
+                </p>
+              )}
+              {!relayer.hasMnemonic && (
+                <p className="text-xs text-danger mt-0.5">RELAYER_MNEMONIC not set</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stuck funds alert */}
+      {stuckFunds && stuckFunds.total > 0 && (
+        <div className="p-4 bg-danger/10 border border-danger/30 rounded-xl">
+          <p className="text-sm font-medium text-danger">
+            {stuckFunds.total} game{stuckFunds.total !== 1 ? 's' : ''} with stuck on-chain funds
+          </p>
+          <p className="text-xs text-text-muted mt-1">
+            {stuckFunds.resolved.length} resolved, {stuckFunds.draws.length} draws, {stuckFunds.canceled.length} canceled — go to Diagnostics to force resolve
+          </p>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -87,15 +127,19 @@ export default function AdminDashboard() {
         <div className="divide-y divide-border">
           {data.recentGames.map((game: any) => (
             <div key={game.id} className="p-3 flex items-center justify-between text-sm">
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-text-muted">{game.id.slice(0, 8)}</span>
-                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
+                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                   game.status === 'playing' ? 'bg-success/10 text-success' :
                   game.status === 'waiting' ? 'bg-warning/10 text-warning' :
+                  game.status === 'canceled' ? 'bg-danger/10 text-danger' :
                   'bg-bg-subtle text-text-muted'
                 }`}>
                   {game.status}
                 </span>
+                {game.onChainGameId && !game.txHashResolve && ['black_wins','white_wins','draw','timeout'].includes(game.status) && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/15 text-danger font-medium">STUCK</span>
+                )}
               </div>
               <span className="text-xs text-text-muted">
                 {(Number(game.wager) / 1_000_000).toFixed(0)} AXM

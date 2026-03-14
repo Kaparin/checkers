@@ -1,21 +1,30 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getDiagnostics, healSystem } from '@/lib/admin-api'
+import { getDiagnostics, healSystem, getStuckFunds, forceResolve } from '@/lib/admin-api'
 import { Skeleton, SkeletonTable } from '@/components/ui/skeleton'
 
 export default function AdminDiagnosticsPage() {
   const [data, setData] = useState<any>(null)
+  const [stuckFunds, setStuckFunds] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [healing, setHealing] = useState(false)
   const [healResults, setHealResults] = useState<string[] | null>(null)
+  const [resolving, setResolving] = useState<string | null>(null)
+  const [resolveResult, setResolveResult] = useState<string | null>(null)
 
   const load = () => {
     setLoading(true)
     setError(null)
-    getDiagnostics()
-      .then(setData)
+    Promise.all([
+      getDiagnostics(),
+      getStuckFunds().catch(() => null),
+    ])
+      .then(([d, sf]) => {
+        setData(d)
+        setStuckFunds(sf)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }
@@ -29,7 +38,6 @@ export default function AdminDiagnosticsPage() {
     try {
       const result = await healSystem()
       setHealResults(result.results)
-      // Reload diagnostics after healing
       load()
     } catch (err: any) {
       setError(err.message)
@@ -38,9 +46,22 @@ export default function AdminDiagnosticsPage() {
     }
   }
 
-  if (error) {
-    return <div className="text-danger text-sm">{error}</div>
+  const handleForceResolve = async (gameId: string) => {
+    if (!confirm(`Force resolve game ${gameId.slice(0, 8)}... on-chain?`)) return
+    setResolving(gameId)
+    setResolveResult(null)
+    try {
+      const result = await forceResolve(gameId)
+      setResolveResult(`Game ${gameId.slice(0, 8)}: tx=${result.txHash.slice(0, 12)}... ${result.note || ''}`)
+      load()
+    } catch (err: any) {
+      setResolveResult(`Error: ${err.message}`)
+    } finally {
+      setResolving(null)
+    }
   }
+
+  if (error) return <div className="text-danger text-sm">{error}</div>
 
   if (loading || !data) {
     return (
@@ -63,6 +84,10 @@ export default function AdminDiagnosticsPage() {
 
   const totalGames = Object.values(data.gameDistribution as Record<string, number>)
     .reduce((sum: number, n) => sum + (n as number), 0)
+
+  const allStuckGames = stuckFunds
+    ? [...(stuckFunds.resolved || []), ...(stuckFunds.draws || []), ...(stuckFunds.canceled || [])]
+    : []
 
   return (
     <div className="space-y-6">
@@ -87,12 +112,102 @@ export default function AdminDiagnosticsPage() {
         </div>
       )}
 
-      {/* Stuck games warning */}
-      {data.stuckGames > 0 && (
-        <div className="p-4 bg-danger/10 border border-danger/30 rounded-xl">
-          <p className="text-sm font-medium text-danger">
-            {data.stuckGames} stuck game{data.stuckGames !== 1 ? 's' : ''} detected — consider running Heal System
+      {/* Resolve result */}
+      {resolveResult && (
+        <div className={`p-4 rounded-xl border ${resolveResult.startsWith('Error') ? 'bg-danger/10 border-danger/30' : 'bg-success/10 border-success/30'}`}>
+          <p className={`text-sm font-medium ${resolveResult.startsWith('Error') ? 'text-danger' : 'text-success'}`}>
+            {resolveResult}
           </p>
+        </div>
+      )}
+
+      {/* Relayer status */}
+      <div className={`p-4 rounded-xl border flex items-center gap-3 ${data.relayerReady ? 'bg-success/5 border-success/30' : 'bg-danger/10 border-danger/30'}`}>
+        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${data.relayerReady ? 'bg-success' : 'bg-danger'}`} />
+        <div>
+          <p className="text-sm font-medium">{data.relayerReady ? 'Relayer Active' : 'Relayer Offline'}</p>
+          {data.relayerAddress && (
+            <p className="text-xs text-text-muted font-mono">{data.relayerAddress}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="p-4 bg-bg-card border border-border rounded-xl">
+          <p className="text-xs text-text-muted mb-1">Stuck Games</p>
+          <p className={`text-lg font-bold tabular-nums ${data.stuckGames > 0 ? 'text-danger' : 'text-success'}`}>
+            {data.stuckGames}
+          </p>
+        </div>
+        <div className="p-4 bg-bg-card border border-border rounded-xl">
+          <p className="text-xs text-text-muted mb-1">Stuck Funds</p>
+          <p className={`text-lg font-bold tabular-nums ${data.stuckFunds > 0 ? 'text-danger' : 'text-success'}`}>
+            {data.stuckFunds}
+          </p>
+        </div>
+        <div className="p-4 bg-bg-card border border-border rounded-xl">
+          <p className="text-xs text-text-muted mb-1">Failed Txs</p>
+          <p className={`text-lg font-bold tabular-nums ${data.failedRelayerTxs > 0 ? 'text-warning' : 'text-success'}`}>
+            {data.failedRelayerTxs}
+          </p>
+        </div>
+      </div>
+
+      {/* Stuck funds section */}
+      {allStuckGames.length > 0 && (
+        <div className="bg-bg-card border border-danger/30 rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-danger">Stuck Funds — {allStuckGames.length} games</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-text-muted">
+                  <th className="p-3 font-medium">Game ID</th>
+                  <th className="p-3 font-medium">Status</th>
+                  <th className="p-3 font-medium">Chain ID</th>
+                  <th className="p-3 font-medium text-right">Wager</th>
+                  <th className="p-3 font-medium">Winner</th>
+                  <th className="p-3 font-medium text-right">Finished</th>
+                  <th className="p-3 font-medium text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {allStuckGames.map((game: any) => (
+                  <tr key={game.id} className="hover:bg-bg-subtle/50">
+                    <td className="p-3 font-mono text-xs">{game.id.slice(0, 8)}...</td>
+                    <td className="p-3">
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                        game.status === 'draw' ? 'bg-accent/10 text-accent' :
+                        game.status === 'canceled' ? 'bg-bg-subtle text-text-muted' :
+                        'bg-success/10 text-success'
+                      }`}>
+                        {game.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-xs tabular-nums">{game.onChainGameId ?? '--'}</td>
+                    <td className="p-3 text-right tabular-nums">{(Number(game.wager) / 1_000_000).toFixed(0)} AXM</td>
+                    <td className="p-3 font-mono text-xs">
+                      {game.winner ? `${game.winner.slice(0, 8)}...` : game.status === 'draw' ? 'draw' : '--'}
+                    </td>
+                    <td className="p-3 text-right text-xs text-text-muted whitespace-nowrap">
+                      {game.finishedAt ? new Date(game.finishedAt).toLocaleString() : '--'}
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => handleForceResolve(game.id)}
+                        disabled={resolving === game.id}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/20 text-accent hover:bg-accent/30 transition-colors disabled:opacity-50"
+                      >
+                        {resolving === game.id ? 'Resolving...' : 'Force Resolve'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -110,22 +225,6 @@ export default function AdminDiagnosticsPage() {
               </div>
             )
           })}
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 bg-bg-card border border-border rounded-xl">
-          <p className="text-xs text-text-muted mb-1">Stuck Games</p>
-          <p className={`text-lg font-bold tabular-nums ${data.stuckGames > 0 ? 'text-danger' : 'text-success'}`}>
-            {data.stuckGames}
-          </p>
-        </div>
-        <div className="p-4 bg-bg-card border border-border rounded-xl">
-          <p className="text-xs text-text-muted mb-1">Failed Transactions</p>
-          <p className={`text-lg font-bold tabular-nums ${data.failedRelayerTxs > 0 ? 'text-warning' : 'text-success'}`}>
-            {data.failedRelayerTxs}
-          </p>
         </div>
       </div>
 

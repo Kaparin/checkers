@@ -108,12 +108,43 @@ export async function getTreasury() {
   return adminRequest<{ totalCommission: string; pendingSweep: string; ledger: any[] }>('/treasury')
 }
 
+// ── Relayer ─────────────────────────────────────────────
+
+export async function getRelayerStatus() {
+  return adminRequest<{
+    ready: boolean
+    address: string | null
+    contractAddress: string | null
+    hasMnemonic: boolean
+  }>('/relayer')
+}
+
+// ── Stuck Funds ─────────────────────────────────────────
+
+export async function getStuckFunds() {
+  return adminRequest<{
+    resolved: any[]
+    draws: any[]
+    canceled: any[]
+    total: number
+  }>('/games/stuck-funds')
+}
+
+export async function forceResolve(gameId: string) {
+  return adminRequest<{ success: boolean; txHash: string; note?: string }>(`/games/${gameId}/force-resolve`, {
+    method: 'POST',
+  })
+}
+
 // ── Diagnostics ─────────────────────────────────────────
 
 export async function getDiagnostics() {
   return adminRequest<{
+    relayerReady: boolean
+    relayerAddress: string | null
     gameDistribution: Record<string, number>
     stuckGames: number
+    stuckFunds: number
     recentRelayerTxs: any[]
     failedRelayerTxs: number
   }>('/diagnostics')

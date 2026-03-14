@@ -561,6 +561,7 @@ gameRoutes.post('/:id/cancel', requireAuth, async (c) => {
     fireAndForget(`cancel:${gameId}`, async () => {
       const txHash = await relayer.relayCancelGame(address, game.onChainGameId!)
       console.log(`[relay:cancel] Game ${gameId} tx=${txHash.slice(0, 12)}...`)
+      await db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId))
     })
   }
 

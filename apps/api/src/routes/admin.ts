@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
-import { eq, sql, desc, count, and, lt, gt, inArray, ilike, or } from 'drizzle-orm'
+import { eq, sql, desc, count, and, lt, gt, inArray, ilike, or, isNull, isNotNull } from 'drizzle-orm'
 import { requireAdmin } from '../middleware/admin'
 import { games, users, vaultBalances, treasuryLedger, relayerTransactions, txEvents, platformConfig, events, announcements } from '@checkers/db'
 import type { Db } from '@checkers/db'
 import { ConfigService } from '../services/config.service'
 import { TreasuryService } from '../services/treasury.service'
+import { relayer } from '../services/relayer'
+import { AXIOME_DENOM } from '@checkers/shared/chain'
 
 export const adminRoutes = new Hono()
 
@@ -258,6 +260,7 @@ adminRoutes.get('/diagnostics', async (c) => {
   const [
     gamesByStatus,
     stuckGames,
+    stuckFunds,
     recentRelayerTxs,
     failedTxs,
   ] = await Promise.all([
@@ -268,16 +271,123 @@ adminRoutes.get('/diagnostics', async (c) => {
         lt(games.createdAt, fiveMinAgo),
       )
     ),
+    db.select({ count: count() }).from(games).where(
+      and(
+        inArray(games.status, ['black_wins', 'white_wins', 'draw', 'timeout', 'canceled']),
+        isNotNull(games.onChainGameId),
+        isNull(games.txHashResolve),
+      )
+    ),
     db.select().from(relayerTransactions).orderBy(desc(relayerTransactions.createdAt)).limit(20),
     db.select({ count: count() }).from(relayerTransactions).where(eq(relayerTransactions.status, 'failed')),
   ])
 
   return c.json({
+    relayerReady: relayer.isReady,
+    relayerAddress: relayer.getAddress() || null,
     gameDistribution: Object.fromEntries(gamesByStatus.map(r => [r.status, r.count])),
     stuckGames: stuckGames[0]?.count ?? 0,
+    stuckFunds: stuckFunds[0]?.count ?? 0,
     recentRelayerTxs,
     failedRelayerTxs: failedTxs[0]?.count ?? 0,
   })
+})
+
+// ─── Relayer Status ──────────────────────────────────────
+
+adminRoutes.get('/relayer', async (c) => {
+  return c.json({
+    ready: relayer.isReady,
+    address: relayer.getAddress() || null,
+    contractAddress: process.env.CHECKERS_CONTRACT || null,
+    hasMnemonic: !!process.env.RELAYER_MNEMONIC,
+  })
+})
+
+// ─── Stuck Funds (finished games without on-chain resolution) ─
+
+adminRoutes.get('/games/stuck-funds', async (c) => {
+  const db = c.get('db' as never) as Db
+
+  const stuckResolved = await db.select().from(games).where(
+    and(
+      inArray(games.status, ['black_wins', 'white_wins', 'timeout']),
+      isNotNull(games.onChainGameId),
+      isNull(games.txHashResolve),
+    )
+  ).orderBy(desc(games.finishedAt))
+
+  const stuckDraws = await db.select().from(games).where(
+    and(
+      eq(games.status, 'draw'),
+      isNotNull(games.onChainGameId),
+      isNull(games.txHashResolve),
+    )
+  ).orderBy(desc(games.finishedAt))
+
+  const stuckCanceled = await db.select().from(games).where(
+    and(
+      eq(games.status, 'canceled'),
+      isNotNull(games.onChainGameId),
+      isNotNull(games.txHashCreate),
+      isNull(games.txHashResolve),
+    )
+  ).orderBy(desc(games.finishedAt))
+
+  return c.json({
+    resolved: stuckResolved,
+    draws: stuckDraws,
+    canceled: stuckCanceled,
+    total: stuckResolved.length + stuckDraws.length + stuckCanceled.length,
+  })
+})
+
+// Force resolve a specific game on-chain
+adminRoutes.post('/games/:id/force-resolve', async (c) => {
+  const db = c.get('db' as never) as Db
+  const gameId = c.req.param('id')
+
+  if (!relayer.isReady) {
+    return c.json({ error: 'Relayer not ready' }, 503)
+  }
+
+  const [game] = await db.select().from(games).where(eq(games.id, gameId))
+  if (!game) return c.json({ error: 'Game not found' }, 404)
+  if (!game.onChainGameId) return c.json({ error: 'Game has no on-chain ID' }, 400)
+  if (game.txHashResolve) return c.json({ error: 'Game already resolved on-chain' }, 400)
+
+  try {
+    let txHash: string
+
+    if (game.status === 'draw') {
+      txHash = await relayer.relayResolveDraw(game.onChainGameId)
+    } else if (game.status === 'canceled') {
+      if (!game.blackPlayer) return c.json({ error: 'No creator address for cancel' }, 400)
+      txHash = await relayer.relayCancelGame(game.blackPlayer, game.onChainGameId)
+    } else if (game.winner) {
+      txHash = await relayer.relayResolveGame(game.onChainGameId, game.winner)
+    } else {
+      return c.json({ error: 'Cannot resolve: no winner set' }, 400)
+    }
+
+    await db.update(games).set({ txHashResolve: txHash }).where(eq(games.id, gameId))
+
+    await db.insert(txEvents).values({
+      action: 'admin_action',
+      gameId,
+      details: `Admin force-resolve: tx=${txHash}`,
+    })
+
+    return c.json({ success: true, txHash })
+  } catch (err: any) {
+    const msg = err?.message || String(err)
+    // If already resolved on-chain, mark it
+    if (msg.includes('Invalid') || msg.includes('not found') || msg.includes('not active')) {
+      await db.update(games).set({ txHashResolve: 'recovered-on-chain' }).where(eq(games.id, gameId))
+      return c.json({ success: true, txHash: 'recovered-on-chain', note: 'Already resolved on-chain' })
+    }
+    return c.json({ error: msg }, 500)
+  }
 })
 
 // ─── Actions (System Healing) ────────────────────────────
