@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { CheckersBoard } from '@/components/board/checkers-board'
 import { CreateGameModal } from '@/components/ui/create-game-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
-import { listGames, createGame, joinGame, applyReferralCode, type GameListItem } from '@/lib/api'
+import { listGames, createGame, joinGame, cancelGame, applyReferralCode, type GameListItem } from '@/lib/api'
 import { useWallet } from '@/contexts/wallet-context'
-import { Plus, Monitor, Swords, Eye, ArrowLeft, Loader2, RefreshCw, Zap, Users, TrendingUp } from 'lucide-react'
+import { Plus, Monitor, Swords, Eye, ArrowLeft, Loader2, RefreshCw, Zap, Users, TrendingUp, X } from 'lucide-react'
 
 interface GameLobbyProps {
   onJoinGame: (gameId: string) => void
@@ -22,6 +22,7 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
   const [activeGames, setActiveGames] = useState<GameListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null)
+  const [cancelingGameId, setCancelingGameId] = useState<string | null>(null)
   const { address, isConnected, openConnectModal } = useWallet()
   const { subscribe } = useWebSocket()
 
@@ -78,6 +79,20 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
     const { game } = await createGame(wager, timePerMove, variant)
     setShowCreate(false)
     router.push(`/game/${game.id}`)
+  }
+
+  async function handleCancel(gameId: string) {
+    if (cancelingGameId) return
+    setCancelingGameId(gameId)
+    try {
+      await cancelGame(gameId)
+      loadGames()
+    } catch {
+      // Still refresh — game might have been canceled
+      loadGames()
+    } finally {
+      setCancelingGameId(null)
+    }
   }
 
   async function handleJoin(gameId: string) {
@@ -269,19 +284,30 @@ export function GameLobby({ onJoinGame }: GameLobbyProps) {
                       <span className="text-xl font-bold tabular-nums">{wagerAXM}</span>
                       <span className="text-sm text-text-muted">AXM</span>
                     </div>
-                    <button
-                      onClick={() => isOwn ? router.push(`/game/${game.id}`) : isConnected ? handleJoin(game.id) : openConnectModal()}
-                      disabled={joiningGameId === game.id}
-                      className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all disabled:opacity-50 ${
-                        isOwn
-                          ? 'bg-bg-subtle text-text-secondary border border-border'
-                          : 'bg-accent hover:bg-accent-hover text-white shadow-sm'
-                      }`}
-                    >
-                      {isOwn ? 'Ваша' : joiningGameId === game.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : isConnected ? 'Играть' : 'Войти'}
-                    </button>
+                    {isOwn ? (
+                      <button
+                        onClick={() => handleCancel(game.id)}
+                        disabled={cancelingGameId === game.id}
+                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-all disabled:opacity-50 bg-danger/10 text-danger hover:bg-danger/20 border border-danger/20"
+                      >
+                        {cancelingGameId === game.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <X className="w-3.5 h-3.5" />
+                        )}
+                        Отменить
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => isConnected ? handleJoin(game.id) : openConnectModal()}
+                        disabled={joiningGameId === game.id}
+                        className="px-4 py-2 text-sm font-semibold rounded-xl transition-all disabled:opacity-50 bg-accent hover:bg-accent-hover text-white shadow-sm"
+                      >
+                        {joiningGameId === game.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : isConnected ? 'Играть' : 'Войти'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )

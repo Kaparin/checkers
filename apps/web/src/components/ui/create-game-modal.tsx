@@ -108,14 +108,11 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
         setGrantStep(`Ожидание подтверждения... (${attempt + 2}/5)`)
       }
 
-      if (confirmed) {
-        setHasAuthz(true)
-        setCreateError(null)
-      } else {
-        // Tx was broadcast successfully (code: 0), so grant should appear soon
-        setHasAuthz(true)
-        setCreateError(null)
-      }
+      // Grant confirmed or broadcast succeeded — mark as authorized and auto-create
+      setHasAuthz(true)
+      setCreateError(null)
+      // Auto-trigger game creation so user doesn't have to click again
+      setTimeout(() => handleCreate(), 500)
     } catch (err) {
       console.error('[authz] Grant failed:', err)
       const msg = err instanceof Error ? err.message : 'Ошибка авторизации'
@@ -156,10 +153,15 @@ export function CreateGameModal({ onClose, onCreate }: CreateGameModalProps) {
       await onCreate(String(wager * 1_000_000), timePerMove, variant)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка создания игры'
-      setCreateError(msg)
       // If backend says "not authorized" — show the authorize button
       if (msg.includes('не авторизовали') || msg.includes('unauthorized')) {
+        setCreateError(msg)
         setHasAuthz(false)
+      } else if (msg.includes('уже есть') || msg.includes('already')) {
+        // User already has a waiting game — close modal so they see it in lobby
+        setCreateError('У вас уже есть игра. Отмените её или дождитесь соперника.')
+      } else {
+        setCreateError(msg)
       }
       setCreating(false)
       return

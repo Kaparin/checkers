@@ -77,7 +77,7 @@ export async function createGame(wager: string, timePerMove = 60, variant: 'russ
   return request<{ game: GameFull }>('/games', {
     method: 'POST',
     body: JSON.stringify({ wager, timePerMove, variant }),
-    timeoutMs: 30_000, // blockchain tx can take up to ~20s
+    timeoutMs: 60_000, // relay tx + polling can take up to 40s
   })
 }
 
